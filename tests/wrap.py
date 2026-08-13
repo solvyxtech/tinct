@@ -114,7 +114,7 @@ for argv in SHELLS:
     out = run_script(
         argv,
         f'. {INIT}; mkdir -p "$TINCT_HOME/sessions"; '
-        f'printf nord > "$TINCT_HOME/sessions/$TINCT_TTY_NAME"; '
+        f'printf nord > "$TINCT_HOME/sessions/$TINCT_TTY_KEY"; '
         f"TINCT_SHOWING=''; tinct_sync",
         home,
     )
@@ -133,7 +133,7 @@ for argv in SHELLS:
     # a pin outranks a directory rule
     out = run_script(
         argv,
-        f'. {INIT}; printf nord > "$TINCT_HOME/sessions/$TINCT_TTY_NAME"; '
+        f'. {INIT}; printf nord > "$TINCT_HOME/sessions/$TINCT_TTY_KEY"; '
         f'cd /tmp; TINCT_SHOWING=""; tinct_sync',
         home,
     )

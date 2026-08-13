@@ -461,8 +461,14 @@ tinct_set_default() {
   return 0
 }
 
+# Linux calls its terminals pts/0, and a slash in a name would make the session
+# record a nested directory rather than a file. Flatten it into a single
+# filename component; macOS ttys009 is unaffected.
+tinct_tty_key_into() { TTYKEY=${1//\//-}; }
+
 tinct_session_get() {      # <ttyname> -> theme, or nothing
-  local f=$TINCT_SESSION_DIR/$1 n
+  tinct_tty_key_into "$1"
+  local f=$TINCT_SESSION_DIR/$TTYKEY n
   [ -r "$f" ] || return 1
   IFS= read -r n < "$f" || return 1
   tinct_trim_into "$n"; n=$TRIMMED
@@ -472,22 +478,36 @@ tinct_session_get() {      # <ttyname> -> theme, or nothing
 
 tinct_session_set() {      # <ttyname> <theme>
   tinct_theme_file "$2" >/dev/null 2>&1 || return 1
-  tinct_write_atomic "$TINCT_SESSION_DIR/$1" "$2"
+  tinct_tty_key_into "$1"
+  tinct_write_atomic "$TINCT_SESSION_DIR/$TTYKEY" "$2"
 }
 
-tinct_session_clear() { rm -f "$TINCT_SESSION_DIR/$1" 2>/dev/null; return 0; }
+tinct_session_clear() {
+  tinct_tty_key_into "$1"
+  rm -f "$TINCT_SESSION_DIR/$TTYKEY" 2>/dev/null
+  return 0
+}
 
 # tty names get recycled when a window closes and another opens, so records
 # for terminals that no longer exist are dropped on every run.
 tinct_session_gc() {
-  local f name live
+  local f name d live keys=""
   [ -d "$TINCT_SESSION_DIR" ] || return 0
-  live=$(tinct_ttys)
+  # Build the set of live terminals using the same flattened keys the records
+  # are stored under, or Linux names would never match and nothing would be
+  # collected.
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    tinct_tty_key_into "${d#/dev/}"
+    keys="$keys:$TTYKEY"
+  done <<EOF
+$(tinct_ttys)
+EOF
   for f in "$TINCT_SESSION_DIR"/*; do
-    [ -e "$f" ] || continue
+    [ -f "$f" ] || continue
     name=${f##*/}
-    case "$live" in
-      *"/dev/$name"*) ;;
+    case ":$keys:" in
+      *":$name:"*) ;;
       *) rm -f "$f" ;;
     esac
   done

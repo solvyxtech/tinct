@@ -354,6 +354,32 @@ eq "atomic: overwrites cleanly" "second" "$(cat "$TINCT_HOME/atomic-probe")"
 eq "atomic: leaves no temp files" "0" "$(find "$TINCT_HOME" -maxdepth 1 -name 'atomic-probe.*' | grep -c .)"
 tinct_write_atomic "/nonexistent-root-dir-xyz/nope" "x" 2>/dev/null && ok "atomic: fails on an unwritable path" 0 || ok "atomic: fails on an unwritable path" 1
 
+# --- terminal names containing a slash (Linux calls them pts/0) --------------
+tinct_tty_key_into "pts/0";   eq "tty key: flattens a slash"   "pts-0"   "$TTYKEY"
+tinct_tty_key_into "ttys009"; eq "tty key: leaves macOS alone" "ttys009" "$TTYKEY"
+tinct_tty_key_into "pts/12";  eq "tty key: two digits"         "pts-12"  "$TTYKEY"
+
+tinct_session_set "pts/3" bare
+eq "session: a slashed name round trips" "bare" "$(tinct_session_get 'pts/3')"
+[ -f "$TINCT_SESSION_DIR/pts-3" ] && ok "session: stored as one flat file" 1 || ok "session: stored as one flat file" 0
+[ -d "$TINCT_SESSION_DIR/pts" ] && ok "session: no nested directory created" 0 || ok "session: no nested directory created" 1
+tinct_resolve "pts/3"
+eq "resolve: a slashed terminal" "bare" "$RESOLVED"
+tinct_session_clear "pts/3"
+tinct_session_get "pts/3" >/dev/null 2>&1 && ok "session: slashed clear works" 0 || ok "session: slashed clear works" 1
+
+# gc has to match live terminals through the same flattening, or Linux records
+# would never be recognised and would pile up forever.
+tinct_session_set "pts/7" bare
+tinct_session_set "pts/8" bare
+TINCT_TTYS_CACHED=1 TINCT_TTYS_CACHE="/dev/pts/7
+"
+tinct_session_gc
+[ -f "$TINCT_SESSION_DIR/pts-7" ] && ok "gc: keeps a live slashed terminal" 1 || ok "gc: keeps a live slashed terminal" 0
+[ -f "$TINCT_SESSION_DIR/pts-8" ] && ok "gc: drops a dead slashed terminal" 0 || ok "gc: drops a dead slashed terminal" 1
+TINCT_TTYS_CACHED=0 TINCT_TTYS_CACHE=""
+tinct_session_clear "pts/7"
+
 rm -rf "$TINCT_HOME"
 printf '%s: %d passed, %d failed\n' "$SH" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

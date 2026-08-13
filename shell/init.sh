@@ -32,6 +32,9 @@ export PATH
 TINCT_TTY_NAME=$(tty 2>/dev/null) || TINCT_TTY_NAME=''
 TINCT_TTY_NAME=${TINCT_TTY_NAME#/dev/}
 case $TINCT_TTY_NAME in /*|'') TINCT_TTY_NAME='' ;; esac
+# Session records are keyed by a flattened name, because Linux terminals are
+# called pts/0 and a slash would nest a directory instead of naming a file.
+TINCT_TTY_KEY=${TINCT_TTY_NAME//\//-}
 
 if [ -n "${ZSH_VERSION:-}" ]; then
   tinct__match() { case $1 in ${~2}) return 0 ;; esac; return 1; }
@@ -104,7 +107,7 @@ tinct_rule_lookup() {      # <dir|host> <value> -> TINCT_RULE
     tinct__trim "${line%%=*}"; rest=$TINCT_T
     kind=${rest%%[ 	]*}
     tinct__trim "${rest#"$kind"}"; pat=$TINCT_T
-    [ -n "$pat" ] && [ "$kind" = "$1" ] || continue
+    if [ -z "$pat" ] || [ "$kind" != "$1" ]; then continue; fi
     case $kind in
       dir)
         case $pat in "~"*) pat="$HOME${pat#\~}" ;; esac
@@ -123,8 +126,8 @@ tinct_rule_lookup() {      # <dir|host> <value> -> TINCT_RULE
 tinct_here_theme() {       # -> TINCT_WANT
   TINCT_WANT=''
   local n
-  if [ -n "$TINCT_TTY_NAME" ] && [ -r "$TINCT_HOME/sessions/$TINCT_TTY_NAME" ]; then
-    IFS= read -r n < "$TINCT_HOME/sessions/$TINCT_TTY_NAME"
+  if [ -n "$TINCT_TTY_KEY" ] && [ -r "$TINCT_HOME/sessions/$TINCT_TTY_KEY" ]; then
+    IFS= read -r n < "$TINCT_HOME/sessions/$TINCT_TTY_KEY"
     tinct__trim "$n"; TINCT_WANT=$TINCT_T
     [ -n "$TINCT_WANT" ] && return 0
   fi

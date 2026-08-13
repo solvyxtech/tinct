@@ -54,7 +54,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install shellcheck
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck --version
       - name: Lint
         run: |
           # The launcher and installer are POSIX sh. SC2016 is excluded because
@@ -69,14 +71,15 @@ jobs:
           #   SC2034         globals that are read in a different file
           #   SC2296/SC2298  ${~var} and ${${(%):-%x}} -- zsh, in zsh-only branches
           #   SC2254         case patterns from variables, which is the point
+          #   SC2317         a function defined inside a function reads as dead
           shellcheck -s bash \
-            -e SC1090,SC1091,SC2016,SC2034,SC2296,SC2298,SC2254,SC2153,SC2004,SC2321,SC2329 \
+            -e SC1090,SC1091,SC2016,SC2034,SC2296,SC2298,SC2254,SC2153,SC2004,SC2321,SC2329,SC2317 \
             lib/*.sh shell/init.sh
           # The test file additionally uses `call && ok LABEL 0 || ok LABEL 1`
           # to assert that a call fails. ok() cannot itself fail, so the || arm
           # runs only when the call did -- which is the assertion.
           shellcheck -s bash \
-            -e SC1090,SC1091,SC2016,SC2034,SC2296,SC2298,SC2254,SC2153,SC2004,SC2321,SC2329,SC2015 \
+            -e SC1090,SC1091,SC2016,SC2034,SC2296,SC2298,SC2254,SC2153,SC2004,SC2321,SC2329,SC2317,SC2015 \
             tests/unit.sh
 
   themes:
