@@ -165,6 +165,15 @@ for shell in SHELLS:
     check("\033[?25h" in out, f"{tag}: ctrl-c still restores the cursor")
     shutil.rmtree(home)
 
+    # --- 'e' hands the picker's highlighted theme to the editor -------------
+    home = sandbox()
+    out, code = run(shell, [], ["down", "e", "down", "right", "w", "q"], home)
+    check(code == 0, f"{tag}: picker hands off to the editor cleanly (got {code})")
+    saved = os.path.join(home, "themes", "catppuccin-mocha.theme")
+    check(os.path.exists(saved),
+          f"{tag}: 'e' edits the highlighted theme, not the saved one")
+    shutil.rmtree(home)
+
     # --- editor --------------------------------------------------------------
     home = sandbox()
     out, code = run(shell, ["edit", "nord"], ["down", "right", "right", "q"], home)
