@@ -1,0 +1,9 @@
+# warm-charcoal
+LABEL=Warm Charcoal
+DESC=Original near-black warm charcoal, terminal palette untouched
+
+BG=#17120F
+FG=#E8DDD3
+CURSOR=#D97757
+SEL_BG=#3A2A22
+SEL_FG=#F2E8E0
