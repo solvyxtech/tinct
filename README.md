@@ -1,6 +1,6 @@
 # tinct
 
-Terminal colour themes that apply to the session you are already in.
+Terminal color themes that apply to the session you are already in.
 
 No profile to edit, no new window, nothing to restart. Pick a theme and the
 terminal in front of you changes colour, including the program running in it.
