@@ -133,36 +133,49 @@ Two other honest limits:
 
 ## Themes
 
-58 of them: 44 dark, 14 light.
+98 of them: 74 dark, 24 light.
 
 **Dark**
 
 ```
-arctic-dim            ayu-dark              ayu-mirage
-catppuccin-frappe     catppuccin-mocha      cobalt
-copper-patina         dark-cream            desert-night
-dracula               ember                 espresso
-everforest-dark       forest-floor          github-dark
-gruvbox-dark          high-contrast-dark    iceberg
-kanagawa              midnight-ink          mono-amber
+abyssal               arctic-dim            aurora-north
+ayu-dark              ayu-mirage            basalt-glow
+blackcurrant          blueprint             cacao
+campfire              carbon-weave          catppuccin-frappe
+catppuccin-mocha      cobalt                concrete
+copper-patina         dark-cream            deep-jade
+desert-night          dracula               ember
+espresso              everforest-dark       film-noir
+forest-floor          github-dark           glacier-deep
+gruvbox-dark          gunmetal              high-contrast-dark
+iceberg               iron-oxide            kanagawa
+koi-pond              lacquer               leather-bound
+midnight-ink          midnight-orchid       mono-amber
 mono-green            mono-slate            monokai
-moss-stone            night-owl             nord
-obsidian              oceanic-next          one-dark
-palenight             plum-dusk             rose-pine
-sea-glass             selenized-dark        slate-harbor
-solarized-dark        srcery                synthwave
-tokyo-night-storm     tokyo-night           warm-charcoal
+monsoon               moss-stone            nebula
+neon-alley            night-owl             nord
+obsidian              oceanic-next          oil-slick
+one-dark              palenight             peat-bog
+petrichor             plum-dusk             redwood
+rose-pine             sea-glass             selenized-dark
+slate-harbor          solarized-dark        spruce
+srcery                stained-glass         sumi-ink
+synthwave             tidepool              tokyo-night
+tokyo-night-storm     ultraviolet           warm-charcoal
 wine-cellar           zenburn
 ```
 
 **Light**
 
 ```
-ayu-light             catppuccin-latte      everforest-light
-github-light          gruvbox-light         high-contrast-light
-lavender-fog          mint-paper            paper-cream
-papercolor            porcelain             rose-pine-dawn
-sepia-print           solarized-light
+ayu-light             catppuccin-latte      cherry-blossom
+clay                  everforest-light      github-light
+gray-card             gruvbox-light         high-contrast-light
+highlighter           lavender-fog          linen
+matcha                mint-paper            newsprint
+paper-cream           papercolor            porcelain
+rose-pine-dawn        sandstone             sea-fog
+sepia-print           sky-wash              solarized-light
 ```
 
 Every one is checked automatically, because a theme can parse perfectly and
@@ -208,16 +221,19 @@ started when the answer actually changes — `cd` inside one project is free.
 ## The picker
 
 ```
-  tinct  58 themes · here: gruvbox-dark
+  tinct  98 themes · here: night-owl
 
-  ● gruvbox-dark        │   Nord
-    high-contrast-dark  │   Arctic north-bluish, official palette
-    lavender-fog        █
-  ▸ nord                █   ████████████████
-    obsidian            █   ████████████████
-    one-dark            █
-    rose-pine           │   bg #2E3440  fg #D8DEE9
-    tokyo-night         │   contrast 9.7:1
+      mono-slate           │   Nord
+      monokai              │   Arctic north-bluish, official palette
+      monsoon              │
+      moss-stone           █   bg #2E3440  fg #D8DEE9
+      nebula               █   contrast 9.2:1
+      neon-alley           │
+      newsprint            │   ~/src/tinct main ±
+  ●   night-owl            │   $ git commit -m 'retune the palette'
+    ▸ nord                 │    + accent = "#8EC07C"
+      obsidian             │   bold primary  dim secondary
+      oceanic-next         │   ✓ 24 passed  ! 2 warn  ✗ 1 failed
 
   ↑↓ move · ⏎ set here · d default · A all · / find · e edit · q
 ```

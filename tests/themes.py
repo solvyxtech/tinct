@@ -25,6 +25,11 @@ MIN_DIM = 2.2      # ANSI8, which is what dim text uses
 MIN_ANSI = 2.2     # colored text must separate from the background
 MIN_SEL = 2.5      # selected text against its highlight
 MIN_CURSOR = 1.8   # you have to be able to find the cursor
+MIN_APART = 24     # two palette colors a person can tell apart
+
+# Deliberately one color: these emulate single-phosphor hardware, where every
+# "color" really was the same amber, green or gray.
+MONOCHROME = {"mono-amber", "mono-green", "mono-slate"}
 
 fails, warns, checks = [], [], 0
 
@@ -122,6 +127,20 @@ for f in files:
         # ANSI0 doubling as the background makes block-drawn UIs disappear.
         check(dist(d["ANSI0"], bg) >= 8 or d["ANSI0"] == bg,
               f"{name}: ANSI0 is almost-but-not-quite the background")
+
+        # Six colors that all land on the same value are one color, and
+        # syntax highlighting stops saying anything. Hue is the usual way they
+        # differ; a near-monochrome theme has to separate them by lightness
+        # instead. The single-phosphor themes are exempt because a real amber
+        # or green terminal genuinely had one color and nothing else.
+        if name not in MONOCHROME:
+            for half in (range(1, 7), range(9, 15)):
+                pairs = [(d[f"ANSI{i}"], d[f"ANSI{j}"], i, j)
+                         for i in half for j in half if i < j]
+                near = [(i, j) for a, b, i, j in pairs if dist(a, b) < MIN_APART]
+                check(not near,
+                      f"{name}: ANSI{near[0][0]} and ANSI{near[0][1]} are the same color"
+                      if near else "")
 
         # The bright half should actually be bright, or bold text does nothing.
         # Several well-known palettes genuinely do not define a separate bright
