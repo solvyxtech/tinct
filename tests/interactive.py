@@ -42,13 +42,13 @@ def check(cond, label):
 
 def run(shell, args, keys, home, rows=28, cols=116, extra_env=None):
     """Run tinct under a pty, send keys, return (output, exit code)."""
-    env = dict(os.environ)
+    # Every TINCT_ variable goes, not a named few: the suite is often run from
+    # a shell that has the integration loaded and exports state of its own.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
     env.update({
         "TINCT_SHELL": shell, "TINCT_HOME": home,
         "TERM": "xterm-256color", "LINES": str(rows), "COLUMNS": str(cols),
     })
-    env.pop("TINCT_ROWS", None)
-    env.pop("TINCT_COLS", None)
     if extra_env:
         env.update(extra_env)
 
@@ -133,7 +133,7 @@ def theme_names():
     Derived rather than hardcoded: positions shift every time a theme is
     added, and a test that says "the third one" should not care which.
     """
-    env = dict(os.environ)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
     env["TINCT_HOME"] = tempfile.mkdtemp(prefix="tinct-ls-")
     r = subprocess.run([TINCT, "ls"], capture_output=True, text=True, env=env,
                        stdin=subprocess.DEVNULL)

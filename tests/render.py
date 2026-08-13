@@ -41,8 +41,18 @@ def check(cond, label):
         fails.append(label)
 
 
+def clean_env():
+    """The environment a test child should see.
+
+    Every TINCT_ variable is dropped rather than a named few, because the suite
+    is often run from a shell that has the integration loaded, and that shell
+    exports state of its own.
+    """
+    return {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
+
+
 def frame(shell, idx, rows, cols, filt="", home=None):
-    env = dict(os.environ)
+    env = clean_env()
     env["TINCT_SHELL"] = shell
     if home:
         env["TINCT_HOME"] = home
@@ -58,7 +68,7 @@ def frame(shell, idx, rows, cols, filt="", home=None):
 
 
 def themes(shell, home):
-    env = dict(os.environ)
+    env = clean_env()
     env["TINCT_SHELL"] = shell
     if home:
         env["TINCT_HOME"] = home
@@ -116,7 +126,7 @@ for shell in ("zsh", _bash()):
 
 # The last row must not end with a newline, or a full-height frame scrolls the
 # alt screen and drags the header off the top.
-env = dict(os.environ); env["TINCT_SHELL"] = "zsh"
+env = clean_env(); env["TINCT_SHELL"] = "zsh"
 raw = subprocess.run([TINCT, "__frame", "10", "28", "116"], capture_output=True,
                      text=True, env=env, stdin=subprocess.DEVNULL).stdout
 check(not raw.endswith("\n"), "frame must not end with a newline")

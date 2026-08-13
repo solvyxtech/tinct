@@ -33,9 +33,9 @@ def check(cond, label):
 
 
 def run(args, home=None, shell=None, timeout=25, extra=None, binary=TINCT):
-    env = dict(os.environ)
-    for k in ("TINCT_TTY", "TINCT_ROWS", "TINCT_COLS", "TINCT_HOME", "TINCT_SHELL"):
-        env.pop(k, None)
+    # Every TINCT_ variable goes, not a named few: the suite is often run from
+    # a shell that has the integration loaded and exports state of its own.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
     if home:
         env["TINCT_HOME"] = home
     if shell:

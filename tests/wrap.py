@@ -36,14 +36,26 @@ def check(cond, label):
         fails.append(label)
 
 
+def clean_env(**extra):
+    """The environment a test child should see.
+
+    Every TINCT_ variable is dropped rather than a named few, because the suite
+    is often run from a shell that has the integration loaded, and that shell
+    exports state of its own. TINCT_WRAPPED is the one that bites: it marks
+    "a wrapped command is already running", so tinct_run correctly declines to
+    theme anything, and the wrap tests measure nothing.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
+    env["TERM"] = "xterm-256color"
+    env.update(extra)
+    return env
+
+
 def run_script(shell_argv, script, home, interrupt_after=None, wait=3.0):
     wait *= SLOW
     if interrupt_after:
         interrupt_after *= SLOW
-    env = dict(os.environ)
-    env.update({"TINCT_HOME": home, "TERM": "xterm-256color"})
-    for k in ("TINCT_TTY", "TINCT_ROWS", "TINCT_COLS", "TINCT_DISABLE"):
-        env.pop(k, None)
+    env = clean_env(TINCT_HOME=home)
 
     pid, fd = pty.fork()
     if pid == 0:
@@ -231,10 +243,7 @@ for argv in SHELLS:
 def suspend_case(argv, tag):
     import pty as _pty
     home = sandbox(default="gruvbox-dark")
-    env = dict(os.environ)
-    env.update({"TINCT_HOME": home, "TERM": "xterm-256color", "PS1": "P> "})
-    for k in ("TINCT_TTY", "TINCT_ROWS", "TINCT_COLS", "TINCT_DISABLE"):
-        env.pop(k, None)
+    env = clean_env(TINCT_HOME=home, PS1="P> ")
     pid, fd = _pty.fork()
     if pid == 0:
         os.environ.clear(); os.environ.update(env)
