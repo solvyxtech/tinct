@@ -720,7 +720,7 @@ tinct_select_terminal() {
                  tinct_load "$RESOLVED" && tinct_apply_to "${TERM_DEV[$TIDX]}"
                  leaving=refresh; break ;;
         enter)   leaving=theme; break ;;
-        q|quit|esc) leaving=done; break ;;
+        q|quit|esc) leaving=stop; break ;;
       esac
     done
     trap - EXIT INT TERM
