@@ -8,7 +8,7 @@ terminal is handed back in the state it was lent in.
 import os, pty, re, select, shutil, struct, subprocess, sys, tempfile, termios, fcntl, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TINCT = os.path.join(ROOT, "bin", "tinct")
+TINTCOAT = os.path.join(ROOT, "bin", "tintcoat")
 ANSI = re.compile(r"\033\[[0-9;?]*[A-Za-z]|\033\][^\a]*\a")
 
 KEYS = {
@@ -19,14 +19,14 @@ KEYS = {
 
 # CI machines are slower than a laptop; scale the pty waits rather than let
 # these turn into flakes.
-SLOW = float(os.environ.get("TINCT_TEST_SLOW", "1"))
+SLOW = float(os.environ.get("TINTCOAT_TEST_SLOW", "1"))
 
 def _bash():
-    """bash 4+ to test against. run.sh exports TINCT_BASH; fall back to PATH so
+    """bash 4+ to test against. run.sh exports TINTCOAT_BASH; fall back to PATH so
     the suites also work when run directly, including on Linux where Homebrew
     paths do not exist."""
     import shutil as _sh
-    return os.environ.get("TINCT_BASH") or _sh.which("bash") or "bash"
+    return os.environ.get("TINTCOAT_BASH") or _sh.which("bash") or "bash"
 
 
 fails = []
@@ -41,12 +41,12 @@ def check(cond, label):
 
 
 def run(shell, args, keys, home, rows=28, cols=116, extra_env=None):
-    """Run tinct under a pty, send keys, return (output, exit code)."""
-    # Every TINCT_ variable goes, not a named few: the suite is often run from
+    """Run tintcoat under a pty, send keys, return (output, exit code)."""
+    # Every TINTCOAT_ variable goes, not a named few: the suite is often run from
     # a shell that has the integration loaded and exports state of its own.
-    env = {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TINTCOAT_")}
     env.update({
-        "TINCT_SHELL": shell, "TINCT_HOME": home,
+        "TINTCOAT_SHELL": shell, "TINTCOAT_HOME": home,
         "TERM": "xterm-256color", "LINES": str(rows), "COLUMNS": str(cols),
     })
     if extra_env:
@@ -56,7 +56,7 @@ def run(shell, args, keys, home, rows=28, cols=116, extra_env=None):
     if pid == 0:
         os.environ.clear()
         os.environ.update(env)
-        os.execv(TINCT, [TINCT] + args)
+        os.execv(TINTCOAT, [TINTCOAT] + args)
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
     out = bytearray()
@@ -93,7 +93,7 @@ def run(shell, args, keys, home, rows=28, cols=116, extra_env=None):
 
 def sandbox(default=None):
     default = default or FIRST
-    home = tempfile.mkdtemp(prefix="tinct-test-")
+    home = tempfile.mkdtemp(prefix="tintcoat-test-")
     os.makedirs(os.path.join(home, "themes"), exist_ok=True)
     os.makedirs(os.path.join(home, "sessions"), exist_ok=True)
     with open(os.path.join(home, "default"), "w") as f:
@@ -133,9 +133,9 @@ def theme_names():
     Derived rather than hardcoded: positions shift every time a theme is
     added, and a test that says "the third one" should not care which.
     """
-    env = {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
-    env["TINCT_HOME"] = tempfile.mkdtemp(prefix="tinct-ls-")
-    r = subprocess.run([TINCT, "ls"], capture_output=True, text=True, env=env,
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TINTCOAT_")}
+    env["TINTCOAT_HOME"] = tempfile.mkdtemp(prefix="tintcoat-ls-")
+    r = subprocess.run([TINTCOAT, "ls"], capture_output=True, text=True, env=env,
                        stdin=subprocess.DEVNULL)
     out = []
     for line in r.stdout.splitlines():
@@ -144,7 +144,7 @@ def theme_names():
             line = line[2:]
         if line:
             out.append(line.split()[0])
-    shutil.rmtree(env["TINCT_HOME"], ignore_errors=True)
+    shutil.rmtree(env["TINTCOAT_HOME"], ignore_errors=True)
     return out
 
 
@@ -228,7 +228,7 @@ for shell in SHELLS:
     home = sandbox()
     cap = os.path.join(home, "cap")
     out, _ = run(shell, [], ["/", "n", "o", "r", "d", "enter", "enter"], home,
-                 extra_env={"TINCT_TTY": cap})
+                 extra_env={"TINTCOAT_TTY": cap})
     painted = open(cap).read() if os.path.exists(cap) else ""
     check("\033]11;#2E3440" in painted, f"{tag}: nord's background was written to the terminal")
     check("\033]104" in painted, f"{tag}: the previous palette was cleared first")
@@ -277,17 +277,17 @@ for shell in SHELLS:
     shutil.rmtree(home)
 
 # --- the terminal picker ------------------------------------------------------
-# TINCT_TTY may hold several device paths, so the picker can be pointed at
+# TINTCOAT_TTY may hold several device paths, so the picker can be pointed at
 # ordinary files standing in for terminals. Nothing here touches a real window.
 def terminal_picker_case(shell, tag):
     home = sandbox()
-    box = tempfile.mkdtemp(prefix="tinct-ttys-")
+    box = tempfile.mkdtemp(prefix="tintcoat-ttys-")
     fakes = [os.path.join(box, "termA"), os.path.join(box, "termB")]
     for f in fakes:
         open(f, "w").close()
 
     out, code = run(shell, ["sessions"], ["down", "enter", "down", "enter", "q"],
-                    home, extra_env={"TINCT_TTY": "\n".join(fakes)})
+                    home, extra_env={"TINTCOAT_TTY": "\n".join(fakes)})
 
     check(code == 0, f"{tag}: terminal picker exits cleanly (got {code})")
     plain = ANSI_RE.sub("", out)
@@ -315,7 +315,7 @@ def terminal_picker_case(shell, tag):
 
 def terminal_picker_unpin(shell, tag):
     home = sandbox()
-    box = tempfile.mkdtemp(prefix="tinct-ttys-")
+    box = tempfile.mkdtemp(prefix="tintcoat-ttys-")
     fake = os.path.join(box, "termA")
     open(fake, "w").close()
     key = fake.replace("/", "-")
@@ -323,7 +323,7 @@ def terminal_picker_unpin(shell, tag):
     open(os.path.join(home, "sessions", key), "w").write(LAST + "\n")
 
     out, _ = run(shell, ["sessions"], ["c", "q"], home,
-                 extra_env={"TINCT_TTY": fake})
+                 extra_env={"TINTCOAT_TTY": fake})
     check(not os.path.exists(os.path.join(home, "sessions", key)),
           f"{tag}: 'c' unpins the selected terminal")
     check("\033]11;" in open(fake).read(),

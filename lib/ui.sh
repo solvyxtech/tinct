@@ -1,20 +1,27 @@
-# tinct interactive UI: the picker and the color editor.
+# tintcoat interactive UI: the picker and the color editor.
 #
 # Layout is computed from the live terminal size on every frame. The list is a
 # viewport into the theme array, never the whole array -- the old version drew
 # all of it and let the terminal scroll, which meant the cursor was usually off
 # screen on anything shorter than the theme count.
 
-TINCT_EOL=$'\n'
-TINCT_SAVED_STTY=""
+TINTCOAT_EOL=$'\n'
+TINTCOAT_SAVED_STTY=""
+
+# The header label every screen opens with, and the columns it costs: the name
+# plus the two spaces on each side of it. Derived rather than typed, because a
+# hardcoded width silently overflows narrow terminals the day the name changes.
+TINTCOAT_NAME=tintcoat
+TINTCOAT_LABEL="  \033[1m${TINTCOAT_NAME}\033[0m  "
+TINTCOAT_LABEL_W=$(( ${#TINTCOAT_NAME} + 4 ))
 
 # --- terminal plumbing -------------------------------------------------------
-tinct_size() {             # -> TERM_ROWS / TERM_COLS, with sane fallbacks
+tintcoat_size() {             # -> TERM_ROWS / TERM_COLS, with sane fallbacks
   local sz
   # An explicit size wins over anything measured -- the tests pin a size to
   # assert the layout at window shapes nobody here happens to be using.
-  if [ -n "${TINCT_ROWS:-}" ] && [ -n "${TINCT_COLS:-}" ]; then
-    TERM_ROWS=$TINCT_ROWS; TERM_COLS=$TINCT_COLS
+  if [ -n "${TINTCOAT_ROWS:-}" ] && [ -n "${TINTCOAT_COLS:-}" ]; then
+    TERM_ROWS=$TINTCOAT_ROWS; TERM_COLS=$TINTCOAT_COLS
     return 0
   fi
   sz=$(stty size 2>/dev/null)
@@ -26,17 +33,17 @@ tinct_size() {             # -> TERM_ROWS / TERM_COLS, with sane fallbacks
   [ "$TERM_COLS" -lt 1 ] && TERM_COLS=80
 }
 
-tinct_raw_on() {
-  TINCT_SAVED_STTY=$(stty -g 2>/dev/null)
+tintcoat_raw_on() {
+  TINTCOAT_SAVED_STTY=$(stty -g 2>/dev/null)
   stty raw -echo 2>/dev/null
   printf '\033[?1049h\033[?25l'      # alt screen, hide cursor
-  TINCT_EOL=$'\r\n'
+  TINTCOAT_EOL=$'\r\n'
 }
 
-tinct_raw_off() {
+tintcoat_raw_off() {
   printf '\033[?25h\033[?1049l'
-  [ -n "$TINCT_SAVED_STTY" ] && stty "$TINCT_SAVED_STTY" 2>/dev/null
-  TINCT_EOL=$'\n'
+  [ -n "$TINTCOAT_SAVED_STTY" ] && stty "$TINTCOAT_SAVED_STTY" 2>/dev/null
+  TINTCOAT_EOL=$'\n'
   return 0
 }
 
@@ -58,7 +65,7 @@ frame_flush() {
     if [ $i -eq $(( last - 1 )) ]; then
       printf '%b' "${FRAME[$i]}"
     else
-      printf '%b%s' "${FRAME[$i]}" "$TINCT_EOL"
+      printf '%b%s' "${FRAME[$i]}" "$TINTCOAT_EOL"
     fi
     i=$((i+1))
   done
@@ -69,26 +76,26 @@ frame_flush() {
 if [ -n "${ZSH_VERSION:-}" ]; then
   # -r matters even for a single character: without it a backslash is treated
   # as an escape rather than as the key somebody pressed.
-  tinct_rd1()  { read -r -k 1 "$1"; }
-  tinct_rd1t() { read -r -k 1 -t "$2" "$1"; }
+  tintcoat_rd1()  { read -r -k 1 "$1"; }
+  tintcoat_rd1t() { read -r -k 1 -t "$2" "$1"; }
 else
-  tinct_rd1()  { IFS= read -r -s -N 1 "$1"; }
-  tinct_rd1t() { IFS= read -r -s -N 1 -t "$2" "$1"; }
+  tintcoat_rd1()  { IFS= read -r -s -N 1 "$1"; }
+  tintcoat_rd1t() { IFS= read -r -s -N 1 -t "$2" "$1"; }
 fi
 
-tinct_key() {              # -> KEY
+tintcoat_key() {              # -> KEY
   local k k2 k3 junk
-  tinct_rd1 k || { KEY=quit; return; }
+  tintcoat_rd1 k || { KEY=quit; return; }
   case $k in
     $'\033')
-      if tinct_rd1t k2 0.06 && { [ "$k2" = "[" ] || [ "$k2" = "O" ]; }; then
-        tinct_rd1t k3 0.06
+      if tintcoat_rd1t k2 0.06 && { [ "$k2" = "[" ] || [ "$k2" = "O" ]; }; then
+        tintcoat_rd1t k3 0.06
         case $k3 in
           A) KEY=up ;;    B) KEY=down ;;
           C) KEY=right ;; D) KEY=left ;;
           H) KEY=home ;;  F) KEY=end ;;
-          5) tinct_rd1t junk 0.06; KEY=pgup ;;
-          6) tinct_rd1t junk 0.06; KEY=pgdn ;;
+          5) tintcoat_rd1t junk 0.06; KEY=pgup ;;
+          6) tintcoat_rd1t junk 0.06; KEY=pgdn ;;
           *) KEY=skip ;;
         esac
       else
@@ -103,18 +110,18 @@ tinct_key() {              # -> KEY
   esac
 }
 
-tinct_ask() {              # cooked prompt inside the alt screen -> ANSWER
+tintcoat_ask() {              # cooked prompt inside the alt screen -> ANSWER
   local a
-  [ -n "$TINCT_SAVED_STTY" ] && stty "$TINCT_SAVED_STTY" 2>/dev/null
+  [ -n "$TINTCOAT_SAVED_STTY" ] && stty "$TINTCOAT_SAVED_STTY" 2>/dev/null
   printf '\033[?25h'
-  printf '%b ' "$TINCT_EOL$1"
+  printf '%b ' "$TINTCOAT_EOL$1"
   IFS= read -r a
   stty raw -echo 2>/dev/null
   printf '\033[?25l'
   ANSWER=$a
 }
 
-tinct_norm_hex() {         # fff / #FFF / aabbcc -> #AABBCC, else fail
+tintcoat_norm_hex() {         # fff / #FFF / aabbcc -> #AABBCC, else fail
   local h=${1#\#}
   case ${#h} in
     3|6) ;;
@@ -124,7 +131,7 @@ tinct_norm_hex() {         # fff / #FFF / aabbcc -> #AABBCC, else fail
     *[!0-9A-Fa-f]*) return 1 ;;
   esac
   [ ${#h} -eq 3 ] && h="${h:0:1}${h:0:1}${h:1:1}${h:1:1}${h:2:1}${h:2:1}"
-  tinct_upper "#$h"
+  tintcoat_upper "#$h"
 }
 
 # --- viewport ----------------------------------------------------------------
@@ -132,8 +139,8 @@ tinct_norm_hex() {         # fff / #FFF / aabbcc -> #AABBCC, else fail
 # without a terminal. Given the previous top, return the new one such that idx
 # is visible with `scrolloff` rows of context where the list allows it.
 #
-#   tinct_viewport_top <count> <height> <idx> <prev_top> <scrolloff> -> VIEW_TOP
-tinct_viewport_top() {
+#   tintcoat_viewport_top <count> <height> <idx> <prev_top> <scrolloff> -> VIEW_TOP
+tintcoat_viewport_top() {
   local n=$1 h=$2 idx=$3 top=$4 off=$5 max
   if [ "$h" -ge "$n" ]; then VIEW_TOP=0; return 0; fi
 
@@ -153,7 +160,7 @@ tinct_viewport_top() {
 }
 
 # Scrollbar glyph for one visible row, or a space when everything fits.
-tinct_scroll_glyph() {     # <count> <height> <top> <row> -> GLYPH
+tintcoat_scroll_glyph() {     # <count> <height> <top> <row> -> GLYPH
   local n=$1 h=$2 top=$3 row=$4 size pos end
   if [ "$h" -ge "$n" ]; then GLYPH=' '; return 0; fi
   size=$(( h * h / n ))
@@ -169,10 +176,10 @@ tinct_scroll_glyph() {     # <count> <height> <top> <row> -> GLYPH
 # it has just been repainted to exactly those colors -- but when the target is
 # a different terminal, this window has not been repainted and palette entries
 # would show your colors while claiming to show theirs.
-tinct_fg_esc() {           # <palette index> -> FGE
+tintcoat_fg_esc() {           # <palette index> -> FGE
   local c=${TH_ANSI[$1]}
   if [ -n "$c" ]; then
-    tinct_hex2rgb_into "$c"
+    tintcoat_hex2rgb_into "$c"
     FGE="\033[38;2;${R};${G};${B}m"
   else
     FGE="\033[38;5;$1m"
@@ -181,16 +188,16 @@ tinct_fg_esc() {           # <palette index> -> FGE
 
 # Sample output. Deliberately generic: it exercises bold, dim, and palette
 # entries 1-6 the way a real session would, without pretending to be one.
-tinct_sample_lines() {
+tintcoat_sample_lines() {
   local f1 f2 f3 f4 f5 f6
-  tinct_fg_esc 1; f1=$FGE
-  tinct_fg_esc 2; f2=$FGE
-  tinct_fg_esc 3; f3=$FGE
-  tinct_fg_esc 4; f4=$FGE
-  tinct_fg_esc 5; f5=$FGE
-  tinct_fg_esc 6; f6=$FGE
+  tintcoat_fg_esc 1; f1=$FGE
+  tintcoat_fg_esc 2; f2=$FGE
+  tintcoat_fg_esc 3; f3=$FGE
+  tintcoat_fg_esc 4; f4=$FGE
+  tintcoat_fg_esc 5; f5=$FGE
+  tintcoat_fg_esc 6; f6=$FGE
   SAMPLE=()
-  SAMPLE[0]="${f4}~/src/tinct\033[0m ${f2}main\033[0m ${f3}±\033[0m"
+  SAMPLE[0]="${f4}~/src/tintcoat\033[0m ${f2}main\033[0m ${f3}±\033[0m"
   SAMPLE[1]="${f5}\$\033[0m git commit -m 'retune the palette'"
   SAMPLE[2]="${f2} + accent = \"#8EC07C\"\033[0m"
   SAMPLE[3]="${f1} - accent = \"#83A598\"\033[0m"
@@ -198,12 +205,12 @@ tinct_sample_lines() {
   SAMPLE[5]="${f6}✓ 24 passed\033[0m  ${f3}! 2 warn\033[0m  ${f1}✗ 1 failed\033[0m"
 }
 
-tinct_swatch_row() {       # <first> <last> -> ROW
+tintcoat_swatch_row() {       # <first> <last> -> ROW
   local i=$1 last=$2 s='' c
   while [ "$i" -le "$last" ]; do
     c=${TH_ANSI[$i]}
     if [ -n "$c" ]; then
-      tinct_hex2rgb_into "$c"
+      tintcoat_hex2rgb_into "$c"
       s="${s}\033[48;2;${R};${G};${B}m  \033[0m"
     else
       s="${s}\033[48;5;${i}m  \033[0m"
@@ -216,20 +223,20 @@ tinct_swatch_row() {       # <first> <last> -> ROW
 # Pad or truncate plain text to exactly <width> columns, without forking.
 # printf '%-*s' would need $(...) to capture, and the picker does this once
 # per visible row per keystroke.
-TINCT_SPACES='                                                                                                                                                                                                        '
+TINTCOAT_SPACES='                                                                                                                                                                                                        '
 
-tinct_pad() {              # <text> <width> -> PAD
+tintcoat_pad() {              # <text> <width> -> PAD
   local s=$1 w=$2
   if [ "$w" -le 0 ]; then PAD=''; return 0; fi
   if [ ${#s} -ge "$w" ]; then PAD=${s:0:$w}; return 0; fi
-  PAD="$s${TINCT_SPACES:0:$(( w - ${#s} ))}"
+  PAD="$s${TINTCOAT_SPACES:0:$(( w - ${#s} ))}"
 }
 
 # Truncate plain text to a column count, with an ellipsis when it bites.
 # Only ever applied to text before escapes are wrapped around it -- measuring
 # a string that already contains escapes means counting past them, and cutting
 # one in half puts the terminal into a state you cannot see to fix.
-tinct_fit() {              # <text> <width> -> FIT
+tintcoat_fit() {              # <text> <width> -> FIT
   local s=$1 w=$2
   if [ "$w" -le 0 ]; then FIT=''; return 0; fi
   if [ ${#s} -le "$w" ]; then FIT=$s; return 0; fi
@@ -240,21 +247,21 @@ tinct_fit() {              # <text> <width> -> FIT
 # Build the preview block for the loaded theme, in the width it has been given.
 # Each row is composed to fit rather than truncated afterwards, so a long
 # description or a narrow window costs detail instead of spilling over the edge.
-tinct_preview_lines() {    # <want_sample 0|1> <width>
+tintcoat_preview_lines() {    # <want_sample 0|1> <width>
   local want=$1 w=$2 i=0
   PREVIEW=()
 
-  tinct_fit "$TH_LABEL" "$w"
+  tintcoat_fit "$TH_LABEL" "$w"
   PREVIEW[$i]="\033[1m${FIT}\033[0m"; i=$((i+1))
   if [ -n "$TH_DESC" ]; then
-    tinct_fit "$TH_DESC" "$w"
+    tintcoat_fit "$TH_DESC" "$w"
     PREVIEW[$i]="\033[2m${FIT}\033[0m"; i=$((i+1))
   fi
 
   if [ "$w" -ge 16 ]; then
     PREVIEW[$i]=""; i=$((i+1))
-    tinct_swatch_row 0 7;  PREVIEW[$i]=$ROW; i=$((i+1))
-    tinct_swatch_row 8 15; PREVIEW[$i]=$ROW; i=$((i+1))
+    tintcoat_swatch_row 0 7;  PREVIEW[$i]=$ROW; i=$((i+1))
+    tintcoat_swatch_row 8 15; PREVIEW[$i]=$ROW; i=$((i+1))
   fi
 
   PREVIEW[$i]=""; i=$((i+1))
@@ -266,7 +273,7 @@ tinct_preview_lines() {    # <want_sample 0|1> <width>
   fi
 
   if [ -n "$TH_FG" ] && [ -n "$TH_BG" ] && [ "$w" -ge 15 ]; then
-    tinct_contrast_into "$TH_FG" "$TH_BG"
+    tintcoat_contrast_into "$TH_FG" "$TH_BG"
     if [ "$w" -ge 27 ] && [ "$CONTRAST_LOW" = low ]; then
       PREVIEW[$i]="\033[2mcontrast\033[0m ${CONTRAST}:1 \033[38;5;1m· under AA\033[0m"
     else
@@ -279,7 +286,7 @@ tinct_preview_lines() {    # <want_sample 0|1> <width>
   # whole or not at all. 36 columns is its widest line.
   if [ "$want" = 1 ] && [ "$w" -ge 36 ]; then
     PREVIEW[$i]=""; i=$((i+1))
-    tinct_sample_lines
+    tintcoat_sample_lines
     local j=0
     while [ $j -lt ${#SAMPLE[@]} ]; do
       PREVIEW[$i]=${SAMPLE[$j]}; i=$((i+1)); j=$((j+1))
@@ -288,19 +295,19 @@ tinct_preview_lines() {    # <want_sample 0|1> <width>
 }
 
 # --- picker ------------------------------------------------------------------
-TINCT_NAMEW=20            # widest bundled name is 19 ("high-contrast-light")
+TINTCOAT_NAMEW=20            # widest bundled name is 19 ("high-contrast-light")
 
 # Where previewing writes. Empty means this terminal.
 TARGET_DEV=''
-tinct_target_apply() {
+tintcoat_target_apply() {
   if [ -n "$TARGET_DEV" ]; then
-    tinct_apply_to "$TARGET_DEV"
+    tintcoat_apply_to "$TARGET_DEV"
   else
-    tinct_apply_live
+    tintcoat_apply_live
   fi
 }
 
-tinct_filter_apply() {     # THEMES + FILTER -> SHOWN
+tintcoat_filter_apply() {     # THEMES + FILTER -> SHOWN
   local i=0 n
   SHOWN=()
   if [ -z "$FILTER" ]; then
@@ -317,17 +324,17 @@ tinct_filter_apply() {     # THEMES + FILTER -> SHOWN
 }
 
 # Draw one frame to stdout. Reads SHOWN/IDX/TOP/FILTER and the loaded TH_*.
-tinct_draw_picker() {
+tintcoat_draw_picker() {
   local n=${#SHOWN[@]} band twopane leftw namew i row name mark dot sty rst
   local left right glyph plain
 
-  tinct_size
+  tintcoat_size
   band=$(( TERM_ROWS - 5 ))
   [ "$band" -lt 1 ] && band=1
 
   if [ "$TERM_COLS" -ge 80 ]; then twopane=1; else twopane=0; fi
 
-  namew=$TINCT_NAMEW
+  namew=$TINTCOAT_NAMEW
   # One column: let the name field take the width so the scrollbar sits on the
   # right edge instead of floating in the middle of an empty row.
   [ "$twopane" = 0 ] && namew=$(( TERM_COLS - 9 ))
@@ -353,25 +360,25 @@ tinct_draw_picker() {
   else                        previeww=$(( TERM_COLS - 2 )); fi
   [ "$previeww" -lt 0 ] && previeww=0
 
-  tinct_preview_lines "$wantsample" "$previeww"
-  tinct_viewport_top "$n" "$listh" "$IDX" "$TOP" "$TINCT_SCROLLOFF"
+  tintcoat_preview_lines "$wantsample" "$previeww"
+  tintcoat_viewport_top "$n" "$listh" "$IDX" "$TOP" "$TINTCOAT_SCROLLOFF"
   TOP=$VIEW_TOP
 
   frame_reset
   out ""
-  # "  tinct  " is 9 columns before the status text starts.
-  local statusw=$(( TERM_COLS - 9 ))
+  # The label is drawn first; the status text gets whatever is left.
+  local statusw=$(( TERM_COLS - TINTCOAT_LABEL_W ))
   if [ -n "$FILTER" ]; then
-    tinct_fit "${FILTER} · ${n} of ${#THEMES[@]}" "$statusw"
-    out "  \033[1mtinct\033[0m  \033[2m/\033[0m\033[2m${FIT}\033[0m"
+    tintcoat_fit "${FILTER} · ${n} of ${#THEMES[@]}" "$statusw"
+    out "${TINTCOAT_LABEL}\033[2m/\033[0m\033[2m${FIT}\033[0m"
   else
-    tinct_fit "${n} themes · ${TINCT_HEADER_NOTE}" "$statusw"
-    out "  \033[1mtinct\033[0m  \033[2m${FIT}\033[0m"
+    tintcoat_fit "${n} themes · ${TINTCOAT_HEADER_NOTE}" "$statusw"
+    out "${TINTCOAT_LABEL}\033[2m${FIT}\033[0m"
   fi
   out ""
 
   if [ "$n" -eq 0 ]; then
-    tinct_fit "nothing matches '${FILTER}'" $(( TERM_COLS - 2 ))
+    tintcoat_fit "nothing matches '${FILTER}'" $(( TERM_COLS - 2 ))
     out "  \033[38;5;1m${FIT}\033[0m"
     i=1
     while [ $i -lt "$band" ]; do out ""; i=$((i+1)); done
@@ -384,11 +391,11 @@ tinct_draw_picker() {
         if [ "$row" -eq "$IDX" ]; then mark='▸'; sty='\033[7m'; rst='\033[0m'
         else                           mark=' '; sty='';        rst=''; fi
         if [ "$name" = "$ACTIVE_NAME" ]; then dot='\033[38;5;2m●\033[0m'; else dot=' '; fi
-        tinct_pad "$name" "$namew"
-        tinct_scroll_glyph "$n" "$listh" "$TOP" "$i"
+        tintcoat_pad "$name" "$namew"
+        tintcoat_scroll_glyph "$n" "$listh" "$TOP" "$i"
         left="  ${dot} ${sty}${mark} ${PAD} ${rst}\033[2m${GLYPH}\033[0m"
       else
-        tinct_pad '' "$leftw"; left=$PAD
+        tintcoat_pad '' "$leftw"; left=$PAD
       fi
 
       if [ "$twopane" = 1 ]; then
@@ -422,26 +429,26 @@ tinct_draw_picker() {
     [ "$TERM_COLS" -lt 46 ] && hint=' ↑↓ · ⏎ set · / find · q'
     [ "$TERM_COLS" -lt 26 ] && hint=' ⏎ set · q'
   fi
-  tinct_fit "$hint" $(( TERM_COLS - 2 ))
+  tintcoat_fit "$hint" $(( TERM_COLS - 2 ))
   out "  \033[2m${FIT}\033[0m"
 
   printf '\033[H\033[2J'
   frame_flush
 }
 
-tinct_select() {
+tintcoat_select() {
   if [ ! -t 0 ] || [ ! -t 1 ]; then
-    printf 'tinct: the picker needs a terminal.\n' >&2
-    printf "try: tinct set <name>   (or 'tinct ls' to see them)\n" >&2
+    printf 'tintcoat: the picker needs a terminal.\n' >&2
+    printf "try: tintcoat set <name>   (or 'tintcoat ls' to see them)\n" >&2
     return 1
   fi
 
   THEMES=()
   local i=0
   while IFS= read -r n; do THEMES[$i]=$n; i=$((i+1)); done <<EOF
-$(tinct_list)
+$(tintcoat_list)
 EOF
-  [ ${#THEMES[@]} -gt 0 ] || { printf 'tinct: no themes found\n' >&2; return 1; }
+  [ ${#THEMES[@]} -gt 0 ] || { printf 'tintcoat: no themes found\n' >&2; return 1; }
 
   # With no argument the target is this terminal. With one, it is somebody
   # else's -- previewing then paints there while the picker keeps drawing here.
@@ -455,19 +462,19 @@ EOF
     esac
     here=${TARGET_DEV#/dev/}
   else
-    here=$(tinct_this_tty 2>/dev/null) || here=''
+    here=$(tintcoat_this_tty 2>/dev/null) || here=''
     TARGET_DEV=''
   fi
-  tinct_resolve "$here"
+  tintcoat_resolve "$here"
   ACTIVE_NAME=$RESOLVED
   if [ -n "$TARGET_DEV" ]; then
-    TINCT_HEADER_NOTE="${here}: ${RESOLVED}"
+    TINTCOAT_HEADER_NOTE="${here}: ${RESOLVED}"
   else
-    TINCT_HEADER_NOTE="here: ${RESOLVED}"
+    TINTCOAT_HEADER_NOTE="here: ${RESOLVED}"
   fi
   local orig=$ACTIVE_NAME
   FILTER=""; MODE=normal; TOP=0; IDX=0
-  tinct_filter_apply
+  tintcoat_filter_apply
   i=0
   while [ $i -lt ${#SHOWN[@]} ]; do
     [ "${SHOWN[$i]}" = "$orig" ] && IDX=$i
@@ -477,22 +484,22 @@ EOF
   local chosen='' edit_next='' prev_idx=-1
   SCOPE=here
 
-  tinct_raw_on
-  trap 'tinct_raw_off' EXIT INT TERM
+  tintcoat_raw_on
+  trap 'tintcoat_raw_off' EXIT INT TERM
   while :; do
     if [ ${#SHOWN[@]} -gt 0 ] && [ "$IDX" != "$prev_idx" ]; then
-      tinct_load "${SHOWN[$IDX]}" && tinct_target_apply
+      tintcoat_load "${SHOWN[$IDX]}" && tintcoat_target_apply
       prev_idx=$IDX
     fi
-    tinct_draw_picker
-    tinct_key
+    tintcoat_draw_picker
+    tintcoat_key
 
     if [ "$MODE" = filter ]; then
       case $KEY in
         enter)     MODE=normal ;;
-        esc)       FILTER=""; MODE=normal; tinct_filter_apply; IDX=0; TOP=0; prev_idx=-1 ;;
-        clear)     FILTER=""; tinct_filter_apply; IDX=0; TOP=0; prev_idx=-1 ;;
-        backspace) FILTER=${FILTER%?}; tinct_filter_apply; IDX=0; TOP=0; prev_idx=-1 ;;
+        esc)       FILTER=""; MODE=normal; tintcoat_filter_apply; IDX=0; TOP=0; prev_idx=-1 ;;
+        clear)     FILTER=""; tintcoat_filter_apply; IDX=0; TOP=0; prev_idx=-1 ;;
+        backspace) FILTER=${FILTER%?}; tintcoat_filter_apply; IDX=0; TOP=0; prev_idx=-1 ;;
         up)        [ "$IDX" -gt 0 ] && IDX=$((IDX-1)) ;;
         down)      [ "$IDX" -lt $(( ${#SHOWN[@]} - 1 )) ] && IDX=$((IDX+1)) ;;
         quit)      break ;;
@@ -504,7 +511,7 @@ EOF
             case $KEY in
               [[:print:]])
                 FILTER="${FILTER}${KEY}"
-                tinct_filter_apply; IDX=0; TOP=0; prev_idx=-1 ;;
+                tintcoat_filter_apply; IDX=0; TOP=0; prev_idx=-1 ;;
             esac
           fi ;;
       esac
@@ -528,51 +535,51 @@ EOF
     esac
   done
   trap - EXIT INT TERM
-  tinct_raw_off
+  tintcoat_raw_off
 
   if [ -n "$edit_next" ]; then
-    tinct_edit "$edit_next"
+    tintcoat_edit "$edit_next"
     return $?
   fi
 
   if [ -z "$chosen" ]; then
-    tinct_load "$orig" && tinct_target_apply
+    tintcoat_load "$orig" && tintcoat_target_apply
     printf 'cancelled, still on %s\n' "$orig"
     return 0
   fi
 
   local devs d count=0
-  tinct_load "$chosen"
+  tintcoat_load "$chosen"
 
   case $SCOPE in
     all)
-      tinct_seq_into
-      devs=$(tinct_ttys)
+      tintcoat_seq_into
+      devs=$(tintcoat_ttys)
       while IFS= read -r d; do
         [ -n "$d" ] || continue
-        tinct_emit_to "$SEQ" "$d" || continue
-        tinct_session_set "${d#/dev/}" "$chosen"
+        tintcoat_emit_to "$SEQ" "$d" || continue
+        tintcoat_session_set "${d#/dev/}" "$chosen"
         count=$((count+1))
       done <<EOF
 $devs
 EOF
       printf '%s applied to %d terminals\n' "$chosen" "$count" ;;
     default)
-      tinct_target_apply
-      tinct_set_default "$chosen"
-      [ -n "$here" ] && tinct_session_set "$here" "$chosen"
+      tintcoat_target_apply
+      tintcoat_set_default "$chosen"
+      [ -n "$here" ] && tintcoat_session_set "$here" "$chosen"
       printf '%s set here, and as the default for new terminals\n' "$chosen" ;;
     *)
-      tinct_target_apply
+      tintcoat_target_apply
       if [ -n "$here" ]; then
-        tinct_session_set "$here" "$chosen"
+        tintcoat_session_set "$here" "$chosen"
         if [ -n "$TARGET_DEV" ]; then
           printf '%s set for %s\n' "$chosen" "$here"
         else
           printf '%s set for this terminal\n' "$chosen"
         fi
       else
-        tinct_set_default "$chosen"
+        tintcoat_set_default "$chosen"
         printf '%s set as the default\n' "$chosen"
       fi ;;
   esac
@@ -583,32 +590,32 @@ EOF
 # theme picker opens aimed at it: moving the cursor repaints that window while
 # this one keeps drawing the list.
 
-tinct_terminals_collect() {   # -> TERM_DEV / TERM_NAME / TERM_THEME / TERM_PROG / TERM_WHY
+tintcoat_terminals_collect() {   # -> TERM_DEV / TERM_NAME / TERM_THEME / TERM_PROG / TERM_WHY
   local d i=0
   TERM_DEV=(); TERM_NAME=(); TERM_THEME=(); TERM_PROG=(); TERM_WHY=()
-  TINCT_TTYS_CACHED=0        # windows open and close while this is on screen
+  TINTCOAT_TTYS_CACHED=0        # windows open and close while this is on screen
   while IFS= read -r d; do
     [ -n "$d" ] || continue
     TERM_DEV[$i]=$d
     TERM_NAME[$i]=${d#/dev/}
-    tinct_resolve "${d#/dev/}"
+    tintcoat_resolve "${d#/dev/}"
     TERM_THEME[$i]=$RESOLVED
     case $RESOLVED_BY in
       pinned*) TERM_WHY[$i]=pinned ;;
       *)       TERM_WHY[$i]=default ;;
     esac
-    TERM_PROG[$i]=$(tinct_tty_program "${d#/dev/}")
+    TERM_PROG[$i]=$(tintcoat_tty_program "${d#/dev/}")
     i=$((i+1))
   done <<EOF
-$(tinct_ttys)
+$(tintcoat_ttys)
 EOF
 }
 
-tinct_draw_terminals() {
+tintcoat_draw_terminals() {
   local n=${#TERM_DEV[@]} band twopane leftw i row sty rst mark here
   local left right previeww
 
-  tinct_size
+  tintcoat_size
   band=$(( TERM_ROWS - 5 ))
   [ "$band" -lt 1 ] && band=1
   if [ "$TERM_COLS" -ge 84 ]; then twopane=1; else twopane=0; fi
@@ -621,19 +628,19 @@ tinct_draw_terminals() {
   [ "$previeww" -lt 0 ] && previeww=0
 
   if [ "$n" -gt 0 ]; then
-    tinct_load "${TERM_THEME[$TIDX]}" 2>/dev/null
-    [ "$twopane" = 1 ] && tinct_preview_lines 1 "$previeww"
+    tintcoat_load "${TERM_THEME[$TIDX]}" 2>/dev/null
+    [ "$twopane" = 1 ] && tintcoat_preview_lines 1 "$previeww"
   fi
 
-  tinct_viewport_top "$n" "$band" "$TIDX" "$TTOP" "$TINCT_SCROLLOFF"
+  tintcoat_viewport_top "$n" "$band" "$TIDX" "$TTOP" "$TINTCOAT_SCROLLOFF"
   TTOP=$VIEW_TOP
 
-  here=$(tinct_this_tty 2>/dev/null) || here=''
+  here=$(tintcoat_this_tty 2>/dev/null) || here=''
 
   frame_reset
   out ""
-  tinct_fit "${n} open · ⏎ to change one" $(( TERM_COLS - 9 ))
-  out "  \033[1mtinct\033[0m  \033[2m${FIT}\033[0m"
+  tintcoat_fit "${n} open · ⏎ to change one" $(( TERM_COLS - TINTCOAT_LABEL_W ))
+  out "${TINTCOAT_LABEL}\033[2m${FIT}\033[0m"
   out ""
 
   i=0
@@ -642,19 +649,19 @@ tinct_draw_terminals() {
     if [ "$row" -lt "$n" ]; then
       if [ "$row" -eq "$TIDX" ]; then mark='▸'; sty='\033[7m'; rst='\033[0m'
       else                            mark=' '; sty='';        rst=''; fi
-      tinct_pad "${TERM_NAME[$row]}" 10;        left="${PAD}"
-      tinct_pad "${TERM_THEME[$row]}" 20;       left="${left} ${PAD}"
-      tinct_pad "${TERM_PROG[$row]:--}" 11;     left="${left} ${PAD}"
-      tinct_pad "${TERM_WHY[$row]}" 7;          left="${left} ${PAD}"
+      tintcoat_pad "${TERM_NAME[$row]}" 10;        left="${PAD}"
+      tintcoat_pad "${TERM_THEME[$row]}" 20;       left="${left} ${PAD}"
+      tintcoat_pad "${TERM_PROG[$row]:--}" 11;     left="${left} ${PAD}"
+      tintcoat_pad "${TERM_WHY[$row]}" 7;          left="${left} ${PAD}"
       if [ "${TERM_NAME[$row]}" = "$here" ]; then
         left="  ${sty}${mark} ${left}${rst}\033[2m·you\033[0m"
       else
         left="  ${sty}${mark} ${left}${rst}"
       fi
-      tinct_scroll_glyph "$n" "$band" "$TTOP" "$i"
+      tintcoat_scroll_glyph "$n" "$band" "$TTOP" "$i"
       left="${left} \033[2m${GLYPH}\033[0m"
     else
-      tinct_pad '' "$leftw"; left=$PAD
+      tintcoat_pad '' "$leftw"; left=$PAD
     fi
 
     if [ "$twopane" = 1 ] && [ $i -lt ${#PREVIEW[@]} ] && [ -n "${PREVIEW[$i]}" ]; then
@@ -668,30 +675,30 @@ tinct_draw_terminals() {
   out ""
   local hint=' ↑↓ move · ⏎ change theme · c unpin · r refresh · q back'
   [ "$TERM_COLS" -lt 60 ] && hint=' ↑↓ · ⏎ theme · c unpin · q'
-  tinct_fit "$hint" $(( TERM_COLS - 2 ))
+  tintcoat_fit "$hint" $(( TERM_COLS - 2 ))
   out "  \033[2m${FIT}\033[0m"
 
   printf '\033[H\033[2J'
   frame_flush
 }
 
-tinct_select_terminal() {
+tintcoat_select_terminal() {
   if [ ! -t 0 ] || [ ! -t 1 ]; then
-    printf 'tinct: picking a terminal needs a terminal.\n' >&2
-    printf 'try: tinct sessions | cat   (plain listing)\n' >&2
+    printf 'tintcoat: picking a terminal needs a terminal.\n' >&2
+    printf 'try: tintcoat sessions | cat   (plain listing)\n' >&2
     return 1
   fi
 
   TIDX=0; TTOP=0
-  tinct_terminals_collect
+  tintcoat_terminals_collect
   if [ ${#TERM_DEV[@]} -eq 0 ]; then
-    printf 'tinct: no terminals found\n' >&2
+    printf 'tintcoat: no terminals found\n' >&2
     return 1
   fi
 
   # Start on the terminal you are sitting in, since it is the likeliest one.
   local here i
-  here=$(tinct_this_tty 2>/dev/null) || here=''
+  here=$(tintcoat_this_tty 2>/dev/null) || here=''
   i=0
   while [ $i -lt ${#TERM_DEV[@]} ]; do
     [ "${TERM_NAME[$i]}" = "$here" ] && TIDX=$i
@@ -700,12 +707,12 @@ tinct_select_terminal() {
 
   local target
   while :; do
-    tinct_raw_on
-    trap 'tinct_raw_off' EXIT INT TERM
+    tintcoat_raw_on
+    trap 'tintcoat_raw_off' EXIT INT TERM
     local leaving=''
     while :; do
-      tinct_draw_terminals
-      tinct_key
+      tintcoat_draw_terminals
+      tintcoat_key
       case $KEY in
         up|k)    [ "$TIDX" -gt 0 ] && TIDX=$((TIDX-1)) ;;
         down|j)  [ "$TIDX" -lt $(( ${#TERM_DEV[@]} - 1 )) ] && TIDX=$((TIDX+1)) ;;
@@ -715,24 +722,24 @@ tinct_select_terminal() {
         home|g)  TIDX=0 ;;
         end|G)   TIDX=$(( ${#TERM_DEV[@]} - 1 )) ;;
         r)       leaving=refresh; break ;;
-        c)       tinct_session_clear "${TERM_NAME[$TIDX]}"
-                 tinct_resolve "${TERM_NAME[$TIDX]}"
-                 tinct_load "$RESOLVED" && tinct_apply_to "${TERM_DEV[$TIDX]}"
+        c)       tintcoat_session_clear "${TERM_NAME[$TIDX]}"
+                 tintcoat_resolve "${TERM_NAME[$TIDX]}"
+                 tintcoat_load "$RESOLVED" && tintcoat_apply_to "${TERM_DEV[$TIDX]}"
                  leaving=refresh; break ;;
         enter)   leaving=theme; break ;;
         q|quit|esc) leaving=stop; break ;;
       esac
     done
     trap - EXIT INT TERM
-    tinct_raw_off
+    tintcoat_raw_off
 
     case $leaving in
       theme)
         target=${TERM_DEV[$TIDX]}
-        tinct_select "$target"
-        tinct_terminals_collect ;;
+        tintcoat_select "$target"
+        tintcoat_terminals_collect ;;
       refresh)
-        tinct_terminals_collect ;;
+        tintcoat_terminals_collect ;;
       *)
         return 0 ;;
     esac

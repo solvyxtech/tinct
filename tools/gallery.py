@@ -20,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEMES = os.path.join(ROOT, "themes")
 OUT = os.path.join(ROOT, "docs", "index.html")
 
-REPO = "https://github.com/solvyxtech/tinct"
+REPO = "https://github.com/solvyxtech/tintcoat"
 
 
 def parse(path):
@@ -79,8 +79,8 @@ def card(name, d):
   </header>
   <p class="desc">{e(d['DESC'])}</p>
   <div class="term" role="img" aria-label="Terminal preview of the {e(d['LABEL'])} theme">
-    <div class="line"><span class="c4">~/src/tinct</span> <span class="c5">main</span> <span class="c8">±</span></div>
-    <div class="line"><span class="c2">$</span> tinct set {e(name)}<span class="cur"> </span></div>
+    <div class="line"><span class="c4">~/src/tintcoat</span> <span class="c5">main</span> <span class="c8">±</span></div>
+    <div class="line"><span class="c2">$</span> tintcoat set {e(name)}<span class="cur"> </span></div>
     <div class="line"><span class="c2">+ accent</span> = <span class="c6">"{accent_bright}"</span></div>
     <div class="line"><span class="c1">- accent</span> = <span class="c6">"{accent_blue}"</span></div>
     <div class="line"><span class="sel">selected text</span> <span class="c8">dim comment</span></div>
@@ -285,15 +285,15 @@ def build():
 
     body = f"""<div class="wrap">
   <header class="masthead">
-    <p class="eyebrow">tinct · terminal color themes</p>
+    <p class="eyebrow">tintcoat · terminal color themes</p>
     <h1>A Hundred Terminals</h1>
     <p class="lede">Every theme that ships with
-    <a href="{REPO}">tinct</a>, drawn with its own values — the same background,
+    <a href="{REPO}">tintcoat</a>, drawn with its own values — the same background,
     foreground, cursor, selection and sixteen palette entries your terminal receives.
     Each one clears the quality gate: body text at WCAG AA, dim text and every palette
     color separated from the background, a readable selection, a findable cursor, and no
-    two colors close enough to confuse. Pick one with <code>tinct</code>, or set it
-    directly with <code>tinct set &lt;name&gt;</code>.</p>
+    two colors close enough to confuse. Pick one with <code>tintcoat</code>, or set it
+    directly with <code>tintcoat set &lt;name&gt;</code>.</p>
   </header>
 
   <div class="toolbar">
@@ -310,8 +310,8 @@ def build():
 {section("Light", f"{len(light)} themes", light)}
   <footer>
     <p>{len(themes)} themes, generated from the theme files in
-    <a href="{REPO}">solvyxtech/tinct</a>. Each terminal gets its own —
-    <code>tinct set &lt;name&gt;</code> here, <code>--default</code> for new windows,
+    <a href="{REPO}">solvyxtech/tintcoat</a>. Each terminal gets its own —
+    <code>tintcoat set &lt;name&gt;</code> here, <code>--default</code> for new windows,
     <code>--all</code> for every terminal at once.</p>
   </footer>
 </div>"""
@@ -321,8 +321,8 @@ def build():
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>tinct — a hundred terminals</title>
-<meta name="description" content="Every terminal color theme bundled with tinct, previewed in its own colors.">
+<title>tintcoat — a hundred terminals</title>
+<meta name="description" content="Every terminal color theme bundled with tintcoat, previewed in its own colors.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%23161A20'/><rect x='3' y='4' width='4' height='8' fill='%2386ACD8'/><rect x='9' y='4' width='4' height='8' fill='%23E2703B'/></svg>">
 <style>{style}</style>
 </head>

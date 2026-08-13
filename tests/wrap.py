@@ -15,14 +15,14 @@ SOLAR_LIGHT_BG = "\033]11;#FDF6E3\a"
 GRUV_BG = "\033]11;#282828\a"
 EMBER_BG = "\033]11;#151210\a"
 
-SLOW = float(os.environ.get("TINCT_TEST_SLOW", "1"))
+SLOW = float(os.environ.get("TINTCOAT_TEST_SLOW", "1"))
 
 def _bash():
-    """bash 4+ to test against. run.sh exports TINCT_BASH; fall back to PATH so
+    """bash 4+ to test against. run.sh exports TINTCOAT_BASH; fall back to PATH so
     the suites also work when run directly, including on Linux where Homebrew
     paths do not exist."""
     import shutil as _sh
-    return os.environ.get("TINCT_BASH") or _sh.which("bash") or "bash"
+    return os.environ.get("TINTCOAT_BASH") or _sh.which("bash") or "bash"
 
 
 fails = []
@@ -39,13 +39,13 @@ def check(cond, label):
 def clean_env(**extra):
     """The environment a test child should see.
 
-    Every TINCT_ variable is dropped rather than a named few, because the suite
+    Every TINTCOAT_ variable is dropped rather than a named few, because the suite
     is often run from a shell that has the integration loaded, and that shell
-    exports state of its own. TINCT_WRAPPED is the one that bites: it marks
-    "a wrapped command is already running", so tinct_run correctly declines to
+    exports state of its own. TINTCOAT_WRAPPED is the one that bites: it marks
+    "a wrapped command is already running", so tintcoat_run correctly declines to
     theme anything, and the wrap tests measure nothing.
     """
-    env = {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TINTCOAT_")}
     env["TERM"] = "xterm-256color"
     env.update(extra)
     return env
@@ -55,7 +55,7 @@ def run_script(shell_argv, script, home, interrupt_after=None, wait=3.0):
     wait *= SLOW
     if interrupt_after:
         interrupt_after *= SLOW
-    env = clean_env(TINCT_HOME=home)
+    env = clean_env(TINTCOAT_HOME=home)
 
     pid, fd = pty.fork()
     if pid == 0:
@@ -92,7 +92,7 @@ def run_script(shell_argv, script, home, interrupt_after=None, wait=3.0):
 
 
 def sandbox(default="gruvbox-dark", rules=None, sessions=None):
-    home = tempfile.mkdtemp(prefix="tinct-wrap-")
+    home = tempfile.mkdtemp(prefix="tintcoat-wrap-")
     os.makedirs(os.path.join(home, "themes"), exist_ok=True)
     os.makedirs(os.path.join(home, "sessions"), exist_ok=True)
     open(os.path.join(home, "default"), "w").write(default + "\n")
@@ -110,14 +110,14 @@ for argv in SHELLS:
 
     # --- painting without launching anything --------------------------------
     home = sandbox()
-    out = run_script(argv, f". {INIT}; tinct_paint nord", home)
-    check(NORD_BG in out, f"{tag}: tinct_paint writes the theme to the terminal")
-    check("\033]104\a" in out, f"{tag}: tinct_paint clears the old palette first")
+    out = run_script(argv, f". {INIT}; tintcoat_paint nord", home)
+    check(NORD_BG in out, f"{tag}: tintcoat_paint writes the theme to the terminal")
+    check("\033]104\a" in out, f"{tag}: tintcoat_paint clears the old palette first")
     shutil.rmtree(home)
 
     # --- a new shell picks up the default -----------------------------------
     home = sandbox(default="gruvbox-dark")
-    out = run_script(argv, f". {INIT}; tinct_sync", home)
+    out = run_script(argv, f". {INIT}; tintcoat_sync", home)
     check(GRUV_BG in out, f"{tag}: a new terminal gets the default theme")
     shutil.rmtree(home)
 
@@ -125,9 +125,9 @@ for argv in SHELLS:
     home = sandbox(default="gruvbox-dark")
     out = run_script(
         argv,
-        f'. {INIT}; mkdir -p "$TINCT_HOME/sessions"; '
-        f'printf nord > "$TINCT_HOME/sessions/$TINCT_TTY_KEY"; '
-        f"TINCT_SHOWING=''; tinct_sync",
+        f'. {INIT}; mkdir -p "$TINTCOAT_HOME/sessions"; '
+        f'printf nord > "$TINTCOAT_HOME/sessions/$TINTCOAT_TTY_KEY"; '
+        f"TINTCOAT_SHOWING=''; tintcoat_sync",
         home,
     )
     check(NORD_BG in out, f"{tag}: a pinned terminal keeps its own theme")
@@ -136,17 +136,17 @@ for argv in SHELLS:
 
     # --- directory rules ------------------------------------------------------
     home = sandbox(default="gruvbox-dark", rules="dir /tmp = solarized-light\n")
-    out = run_script(argv, f'. {INIT}; cd /tmp; tinct_sync', home)
+    out = run_script(argv, f'. {INIT}; cd /tmp; tintcoat_sync', home)
     check(SOLAR_LIGHT_BG in out, f"{tag}: a directory rule themes that directory")
 
-    out = run_script(argv, f'. {INIT}; cd /; tinct_sync', home)
+    out = run_script(argv, f'. {INIT}; cd /; tintcoat_sync', home)
     check(GRUV_BG in out, f"{tag}: a directory with no rule falls back to the default")
 
     # a pin outranks a directory rule
     out = run_script(
         argv,
-        f'. {INIT}; printf nord > "$TINCT_HOME/sessions/$TINCT_TTY_KEY"; '
-        f'cd /tmp; TINCT_SHOWING=""; tinct_sync',
+        f'. {INIT}; printf nord > "$TINTCOAT_HOME/sessions/$TINTCOAT_TTY_KEY"; '
+        f'cd /tmp; TINTCOAT_SHOWING=""; tintcoat_sync',
         home,
     )
     check(NORD_BG in out, f"{tag}: a pin outranks a directory rule")
@@ -155,7 +155,7 @@ for argv in SHELLS:
 
     # --- repainting only when the answer changes ----------------------------
     home = sandbox(default="gruvbox-dark", rules="dir /tmp = solarized-light\n")
-    out = run_script(argv, f'. {INIT}; cd /tmp; tinct_sync; tinct_sync; tinct_sync', home)
+    out = run_script(argv, f'. {INIT}; cd /tmp; tintcoat_sync; tintcoat_sync; tintcoat_sync', home)
     check(out.count(SOLAR_LIGHT_BG) == 1,
           f"{tag}: syncing repeatedly repaints once, not every time "
           f"(saw {out.count(SOLAR_LIGHT_BG)})")
@@ -166,9 +166,9 @@ for argv in SHELLS:
     # zsh runs chpwd hooks; bash re-evaluates PROMPT_COMMAND. Under -c there is
     # no prompt, so call it the way the shell would.
     if tag == "zsh":
-        script = f'. {INIT}; tinct_enable_auto; cd /tmp'
+        script = f'. {INIT}; tintcoat_enable_auto; cd /tmp'
     else:
-        script = f'. {INIT}; tinct_enable_auto; cd /tmp; eval "$PROMPT_COMMAND"'
+        script = f'. {INIT}; tintcoat_enable_auto; cd /tmp; eval "$PROMPT_COMMAND"'
     out = run_script(argv, script, home)
     check(GRUV_BG in out, f"{tag}: enabling the hook paints the default immediately")
     check(SOLAR_LIGHT_BG in out, f"{tag}: cd into a rule'd directory repaints via the hook")
@@ -178,7 +178,7 @@ for argv in SHELLS:
 
     # --- wrapping a command --------------------------------------------------
     home = sandbox(default="gruvbox-dark")
-    out = run_script(argv, f'. {INIT}; tinct_wrap sleep solarized-light; sleep 0.2', home)
+    out = run_script(argv, f'. {INIT}; tintcoat_wrap sleep solarized-light; sleep 0.2', home)
     check(SOLAR_LIGHT_BG in out, f"{tag}: a wrapped command applies its theme")
     check(out.rindex(GRUV_BG) > out.index(SOLAR_LIGHT_BG),
           f"{tag}: a wrapped command restores the terminal afterwards")
@@ -186,7 +186,7 @@ for argv in SHELLS:
 
     # --- interrupting still restores -----------------------------------------
     home = sandbox(default="gruvbox-dark")
-    out = run_script(argv, f'. {INIT}; tinct_wrap sleep solarized-light; sleep 5', home,
+    out = run_script(argv, f'. {INIT}; tintcoat_wrap sleep solarized-light; sleep 5', home,
                      interrupt_after=0.8, wait=3.0)
     check(SOLAR_LIGHT_BG in out, f"{tag}: interrupt case applied the theme first")
     check(out.rindex(GRUV_BG) > out.index(SOLAR_LIGHT_BG),
@@ -195,7 +195,7 @@ for argv in SHELLS:
 
     # --- piped output is left alone -----------------------------------------
     home = sandbox()
-    out = run_script(argv, f'. {INIT}; tinct_wrap echo solarized-light; echo hi | cat > /dev/null', home)
+    out = run_script(argv, f'. {INIT}; tintcoat_wrap echo solarized-light; echo hi | cat > /dev/null', home)
     check(SOLAR_LIGHT_BG not in out, f"{tag}: a wrapped command writing to a pipe emits nothing")
     shutil.rmtree(home)
 
@@ -208,32 +208,32 @@ for argv in SHELLS:
         f.write("#!/bin/sh\necho \"stub ssh $*\"\n")
     os.chmod(os.path.join(stub, "ssh"), 0o755)
 
-    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tinct_wrap_ssh; ssh prod-db1', home)
+    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tintcoat_wrap_ssh; ssh prod-db1', home)
     check(EMBER_BG in out, f"{tag}: ssh to a matching host applies its theme")
     check("stub ssh prod-db1" in out, f"{tag}: ssh still runs the real command")
     check(out.rindex(GRUV_BG) > out.index(EMBER_BG), f"{tag}: ssh restores on exit")
 
-    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tinct_wrap_ssh; ssh someone@prod-db1', home)
+    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tintcoat_wrap_ssh; ssh someone@prod-db1', home)
     check(EMBER_BG in out, f"{tag}: ssh strips user@ before matching the host")
 
-    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tinct_wrap_ssh; ssh -p 2222 prod-db1', home)
+    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tintcoat_wrap_ssh; ssh -p 2222 prod-db1', home)
     check(EMBER_BG in out, f"{tag}: ssh skips option arguments when finding the host")
 
-    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tinct_wrap_ssh; ssh example.com', home)
+    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tintcoat_wrap_ssh; ssh example.com', home)
     check(EMBER_BG not in out, f"{tag}: ssh to an unmatched host is left alone")
     check("stub ssh example.com" in out, f"{tag}: unmatched ssh still runs")
     shutil.rmtree(home)
 
     # --- PATH, refusals, opt-out ---------------------------------------------
     home = sandbox()
-    out = run_script(argv, f'. {INIT}; command -v tinct', home)
-    check("bin/tinct" in out, f"{tag}: sourcing init puts tinct on PATH")
+    out = run_script(argv, f'. {INIT}; command -v tintcoat', home)
+    check("bin/tintcoat" in out, f"{tag}: sourcing init puts tintcoat on PATH")
 
-    out = run_script(argv, f". {INIT}; tinct_wrap 'rm -rf /' 2>&1", home)
+    out = run_script(argv, f". {INIT}; tintcoat_wrap 'rm -rf /' 2>&1", home)
     check("not a usable command name" in out, f"{tag}: refuses a bogus command name")
 
-    out = run_script(argv, f'. {INIT}; TINCT_DISABLE=1 tinct_sync', home)
-    check(GRUV_BG not in out, f"{tag}: TINCT_DISABLE stops it painting anything")
+    out = run_script(argv, f'. {INIT}; TINTCOAT_DISABLE=1 tintcoat_sync', home)
+    check(GRUV_BG not in out, f"{tag}: TINTCOAT_DISABLE stops it painting anything")
     shutil.rmtree(home)
 
 # --- suspending a wrapped command must not strand its colors ----------------
@@ -243,7 +243,7 @@ for argv in SHELLS:
 def suspend_case(argv, tag):
     import pty as _pty
     home = sandbox(default="gruvbox-dark")
-    env = clean_env(TINCT_HOME=home, PS1="P> ")
+    env = clean_env(TINTCOAT_HOME=home, PS1="P> ")
     pid, fd = _pty.fork()
     if pid == 0:
         os.environ.clear(); os.environ.update(env)
@@ -265,7 +265,7 @@ def suspend_case(argv, tag):
                 buf.extend(c)
 
     pump(1.0)
-    os.write(fd, f". {INIT}; tinct_enable_auto; tinct_wrap sleep solarized-light\n".encode())
+    os.write(fd, f". {INIT}; tintcoat_enable_auto; tintcoat_wrap sleep solarized-light\n".encode())
     pump(1.2)
     mark = len(buf)
     os.write(fd, b"sleep 30\n")

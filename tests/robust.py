@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Hostile conditions: bad input, bad paths, bad permissions, races.
 
-The other suites check that tinct does the right thing when everything is
+The other suites check that tintcoat does the right thing when everything is
 normal. This one checks it fails cleanly when things are not: unreadable
 config, corrupt themes, a home directory with spaces in it, two processes
 writing at once, no terminal at all. Nothing here should hang, crash, print a
@@ -11,13 +11,13 @@ import os, shutil, subprocess, sys, tempfile, time
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TINCT = os.path.join(ROOT, "bin", "tinct")
+TINTCOAT = os.path.join(ROOT, "bin", "tintcoat")
 def _bash():
-    """bash 4+ to test against. run.sh exports TINCT_BASH; fall back to PATH so
+    """bash 4+ to test against. run.sh exports TINTCOAT_BASH; fall back to PATH so
     the suites also work when run directly, including on Linux where Homebrew
     paths do not exist."""
     import shutil as _sh
-    return os.environ.get("TINCT_BASH") or _sh.which("bash") or "bash"
+    return os.environ.get("TINTCOAT_BASH") or _sh.which("bash") or "bash"
 
 
 SHELLS = ["zsh", _bash()]
@@ -32,14 +32,14 @@ def check(cond, label):
         fails.append(label)
 
 
-def run(args, home=None, shell=None, timeout=25, extra=None, binary=TINCT):
-    # Every TINCT_ variable goes, not a named few: the suite is often run from
+def run(args, home=None, shell=None, timeout=25, extra=None, binary=TINTCOAT):
+    # Every TINTCOAT_ variable goes, not a named few: the suite is often run from
     # a shell that has the integration loaded and exports state of its own.
-    env = {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TINTCOAT_")}
     if home:
-        env["TINCT_HOME"] = home
+        env["TINTCOAT_HOME"] = home
     if shell:
-        env["TINCT_SHELL"] = shell
+        env["TINTCOAT_SHELL"] = shell
     if extra:
         env.update(extra)
     try:
@@ -50,7 +50,7 @@ def run(args, home=None, shell=None, timeout=25, extra=None, binary=TINCT):
 
 
 def sandbox(default="nord", suffix=""):
-    home = tempfile.mkdtemp(prefix="tinct-qc-", suffix=suffix)
+    home = tempfile.mkdtemp(prefix="tintcoat-qc-", suffix=suffix)
     os.makedirs(os.path.join(home, "themes"), exist_ok=True)
     os.makedirs(os.path.join(home, "sessions"), exist_ok=True)
     if default:
@@ -64,7 +64,7 @@ def clean(r, label, expect_zero=True):
     if r is None:
         return
     check("Traceback" not in r.stderr and "line " not in r.stderr.split("\n")[0].lower()
-          or "tinct:" in r.stderr,
+          or "tintcoat:" in r.stderr,
           f"{label}: raw interpreter error: {r.stderr.strip()[:160]}")
     for noise in ("command not found", "syntax error", "bad pattern",
                   "parse error", "unbound variable", "bad substitution",
@@ -92,12 +92,12 @@ for shell in SHELLS:
         shutil.rmtree(home, ignore_errors=True)
 
     # --- the checkout itself living somewhere awkward ------------------------
-    box = tempfile.mkdtemp(prefix="tinct-qc-")
-    spaced = os.path.join(box, "my tools", "tinct copy")
+    box = tempfile.mkdtemp(prefix="tintcoat-qc-")
+    spaced = os.path.join(box, "my tools", "tintcoat copy")
     os.makedirs(os.path.dirname(spaced), exist_ok=True)
     shutil.copytree(ROOT, spaced, ignore=shutil.ignore_patterns(".git"))
     home = sandbox()
-    r = run(["ls"], home, shell, binary=os.path.join(spaced, "bin", "tinct"))
+    r = run(["ls"], home, shell, binary=os.path.join(spaced, "bin", "tintcoat"))
     clean(r, f"{tag}: checkout at a path with spaces")
     if r:
         check("nord" in r.stdout, f"{tag}: finds bundled themes from a spaced checkout")
@@ -105,8 +105,8 @@ for shell in SHELLS:
     # --- reached through a symlink on PATH -----------------------------------
     linkdir = os.path.join(box, "bin")
     os.makedirs(linkdir, exist_ok=True)
-    link = os.path.join(linkdir, "tinct")
-    os.symlink(os.path.join(spaced, "bin", "tinct"), link)
+    link = os.path.join(linkdir, "tintcoat")
+    os.symlink(os.path.join(spaced, "bin", "tintcoat"), link)
     r = run(["ls"], home, shell, binary=link)
     clean(r, f"{tag}: invoked through a symlink")
     if r:
@@ -115,9 +115,9 @@ for shell in SHELLS:
     shutil.rmtree(home, ignore_errors=True)
 
     # --- no themes at all -----------------------------------------------------
-    empty = tempfile.mkdtemp(prefix="tinct-qc-")
+    empty = tempfile.mkdtemp(prefix="tintcoat-qc-")
     os.makedirs(os.path.join(empty, "themes"), exist_ok=True)
-    r = run(["ls"], empty, shell, extra={"TINCT_BUNDLED_DIR": os.path.join(empty, "none")})
+    r = run(["ls"], empty, shell, extra={"TINTCOAT_BUNDLED_DIR": os.path.join(empty, "none")})
     check(r is not None, f"{tag}: no themes at all: hung")
     if r:
         check(r.returncode != 0, f"{tag}: listing no themes exits non-zero")
@@ -232,7 +232,7 @@ for shell in SHELLS:
     shutil.rmtree(home, ignore_errors=True)
 
     # --- reset works from nothing --------------------------------------------
-    bare = tempfile.mkdtemp(prefix="tinct-qc-")
+    bare = tempfile.mkdtemp(prefix="tintcoat-qc-")
     r = run(["reset"], bare, shell)
     clean(r, f"{tag}: reset with an empty config directory")
     r = run(["where"], bare, shell)
@@ -240,7 +240,7 @@ for shell in SHELLS:
     shutil.rmtree(bare, ignore_errors=True)
 
     # config directory that does not exist at all
-    gone = os.path.join(tempfile.mkdtemp(prefix="tinct-qc-"), "nope", "deeper")
+    gone = os.path.join(tempfile.mkdtemp(prefix="tintcoat-qc-"), "nope", "deeper")
     r = run(["set", "nord"], gone, shell)
     clean(r, f"{tag}: set creates its config directory on demand")
     check(os.path.exists(os.path.join(gone, "default")) or
@@ -277,7 +277,7 @@ if r:
     lines = r.stdout.replace("\033[H\033[2J", "").split("\n")
     check(len(lines) <= 28, f"358 themes still fit the window ({len(lines)} lines)")
     check("▸" in r.stdout, "the cursor is still on screen with 358 themes")
-budget = 6 * float(os.environ.get("TINCT_TEST_SLOW", "1"))
+budget = 6 * float(os.environ.get("TINTCOAT_TEST_SLOW", "1"))
 check(elapsed < budget, f"rendering with 358 themes stays responsive ({elapsed:.1f}s)")
 shutil.rmtree(home, ignore_errors=True)
 
@@ -286,7 +286,7 @@ home = sandbox()
 open(os.path.join(home, "themes", "shouty.theme"), "w").write(
     "LABEL=" + "L" * 400 + "\nDESC=" + "D" * 400 + "\nBG=#101010\nFG=#F0F0F0\n"
     "CURSOR=#FFFFFF\nSEL_BG=#333333\nSEL_FG=#FFFFFF\n")
-r = run(["__frame", "0", "24", "80"], home, extra={"TINCT_HOME": home})
+r = run(["__frame", "0", "24", "80"], home, extra={"TINTCOAT_HOME": home})
 clean(r, "rendering a theme with a 400-character label")
 if r:
     for line in r.stdout.replace("\033[H\033[2J", "").split("\n"):

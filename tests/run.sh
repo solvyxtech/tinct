@@ -1,27 +1,27 @@
 #!/bin/sh
 # Run everything. Each suite runs under zsh and, when one is available, under
-# bash 4 or newer -- the two shells tinct claims to support.
+# bash 4 or newer -- the two shells tintcoat claims to support.
 #
 #   tests/run.sh
-#   TINCT_BASH=/opt/homebrew/bin/bash tests/run.sh
+#   TINTCOAT_BASH=/opt/homebrew/bin/bash tests/run.sh
 
 set -e
 ROOT=$(cd -- "$(dirname "$0")/.." && pwd -P)
 cd "$ROOT"
 
 # Nothing in here should see the caller's configuration.
-unset TINCT_HOME TINCT_THEME_DIR TINCT_ACTIVE_FILE TINCT_CONFIG_FILE
-unset TINCT_TTY TINCT_ROWS TINCT_COLS TINCT_SHELL TINCT_WATCH
+unset TINTCOAT_HOME TINTCOAT_THEME_DIR TINTCOAT_ACTIVE_FILE TINTCOAT_CONFIG_FILE
+unset TINTCOAT_TTY TINTCOAT_ROWS TINTCOAT_COLS TINTCOAT_SHELL TINTCOAT_WATCH
 
-if [ -z "${TINCT_BASH:-}" ]; then
+if [ -z "${TINTCOAT_BASH:-}" ]; then
   for cand in /opt/homebrew/bin/bash /usr/local/bin/bash bash; do
     b=$(command -v "$cand" 2>/dev/null) || continue
     major=$("$b" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null) || continue
     case $major in ''|*[!0-9]*) continue ;; esac
-    [ "$major" -ge 4 ] && { TINCT_BASH=$b; break; }
+    [ "$major" -ge 4 ] && { TINTCOAT_BASH=$b; break; }
   done
 fi
-export TINCT_BASH
+export TINTCOAT_BASH
 
 fail=0
 run() {
@@ -31,10 +31,10 @@ run() {
 }
 
 run "unit (zsh)" zsh tests/unit.sh
-if [ -n "${TINCT_BASH:-}" ]; then
-  run "unit (bash $("$TINCT_BASH" -c 'echo $BASH_VERSION'))" "$TINCT_BASH" tests/unit.sh
+if [ -n "${TINTCOAT_BASH:-}" ]; then
+  run "unit (bash $("$TINTCOAT_BASH" -c 'echo $BASH_VERSION'))" "$TINTCOAT_BASH" tests/unit.sh
 else
-  printf '\n=== unit (bash) ===\nskipped: no bash 4+ found, set TINCT_BASH to test it\n'
+  printf '\n=== unit (bash) ===\nskipped: no bash 4+ found, set TINTCOAT_BASH to test it\n'
 fi
 
 run "themes"      python3 tests/themes.py

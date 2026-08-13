@@ -1,11 +1,11 @@
 #!/bin/sh
-# Symlink tinct onto PATH and create its config directory.
+# Symlink tintcoat onto PATH and create its config directory.
 # Everything else -- themes, shell integration -- is opt-in.
 
 set -e
 ROOT=$(cd -- "$(dirname "$0")" && pwd -P)
-BIN=${TINCT_INSTALL_BIN:-$HOME/.local/bin}
-HOME_DIR=${TINCT_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/tinct}
+BIN=${TINTCOAT_INSTALL_BIN:-$HOME/.local/bin}
+HOME_DIR=${TINTCOAT_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/tintcoat}
 
 if ! command -v zsh >/dev/null 2>&1; then
   ok=0
@@ -16,15 +16,15 @@ if ! command -v zsh >/dev/null 2>&1; then
     [ "$major" -ge 4 ] && ok=1 && break
   done
   if [ "$ok" -eq 0 ]; then
-    echo "tinct needs zsh or bash 4+. Install one first:" >&2
+    echo "tintcoat needs zsh or bash 4+. Install one first:" >&2
     echo "    brew install zsh" >&2
     exit 1
   fi
 fi
 
 mkdir -p "$BIN" "$HOME_DIR/themes"
-ln -sf "$ROOT/bin/tinct" "$BIN/tinct"
-echo "installed $BIN/tinct"
+ln -sf "$ROOT/bin/tintcoat" "$BIN/tintcoat"
+echo "installed $BIN/tintcoat"
 echo "config    $HOME_DIR"
 
 case ":$PATH:" in

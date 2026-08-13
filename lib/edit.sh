@@ -1,39 +1,39 @@
-# tinct color editor: nudge a theme's colors and watch the terminal follow.
+# tintcoat color editor: nudge a theme's colors and watch the terminal follow.
 
 # Slot order is the order the cursor walks: the five window colors, then the
 # sixteen palette entries.
-TINCT_SLOTS=(BG FG CURSOR SEL_BG SEL_FG)
-TINCT_SLOTLBL=(bg fg cursor sel.bg sel.fg)
+TINTCOAT_SLOTS=(BG FG CURSOR SEL_BG SEL_FG)
+TINTCOAT_SLOTLBL=(bg fg cursor sel.bg sel.fg)
 _i=0
 while [ $_i -lt 16 ]; do
-  TINCT_SLOTS[$(( _i + 5 ))]="ANSI$_i"
-  TINCT_SLOTLBL[$(( _i + 5 ))]="$_i"
+  TINTCOAT_SLOTS[$(( _i + 5 ))]="ANSI$_i"
+  TINTCOAT_SLOTLBL[$(( _i + 5 ))]="$_i"
   _i=$(( _i + 1 ))
 done
 unset _i
 
 # xterm's defaults, used to seed a slot that the theme leaves unset so nudging
 # an empty palette entry starts somewhere sensible instead of at black.
-TINCT_XTERM=(
+TINTCOAT_XTERM=(
   '#000000' '#CD0000' '#00CD00' '#CDCD00' '#0000EE' '#CD00CD' '#00CDCD' '#E5E5E5'
   '#7F7F7F' '#FF0000' '#00FF00' '#FFFF00' '#5C5CFF' '#FF00FF' '#00FFFF' '#FFFFFF'
 )
 
-TINCT_CELLW=23            # mark2 sp label7 sp swatch2 sp hex7 gap2
+TINTCOAT_CELLW=23            # mark2 sp label7 sp swatch2 sp hex7 gap2
 
-tinct_edit_cell() {       # <slot index, or -1 for filler> -> CELL
+tintcoat_edit_cell() {       # <slot index, or -1 for filler> -> CELL
   local i=$1 key lbl hex mark sty rst sw rgb
-  if [ "$i" -lt 0 ] || [ "$i" -ge ${#TINCT_SLOTS[@]} ]; then
-    CELL=$(printf '%*s' "$TINCT_CELLW" '')
+  if [ "$i" -lt 0 ] || [ "$i" -ge ${#TINTCOAT_SLOTS[@]} ]; then
+    CELL=$(printf '%*s' "$TINTCOAT_CELLW" '')
     return 0
   fi
-  key=${TINCT_SLOTS[$i]}
-  lbl=${TINCT_SLOTLBL[$i]}
+  key=${TINTCOAT_SLOTS[$i]}
+  lbl=${TINTCOAT_SLOTLBL[$i]}
   hex=${V["$key"]}
   if [ "$i" -eq "$CUR" ]; then mark=' \033[1m▸'; sty='\033[1m'; rst='\033[0m'
   else                         mark='  ';        sty='';        rst=''; fi
   if [ -n "$hex" ]; then
-    rgb=$(tinct_hex2rgb "$hex")
+    rgb=$(tintcoat_hex2rgb "$hex")
     sw="\033[48;2;${rgb// /;}m  \033[0m"
   else
     sw='\033[2m··\033[0m'; hex='   --  '
@@ -41,37 +41,37 @@ tinct_edit_cell() {       # <slot index, or -1 for filler> -> CELL
   CELL="${mark} ${sty}$(printf '%-7.7s' "$lbl")${rst} ${sw} $(printf '%-7.7s' "$hex")  "
 }
 
-tinct_edit_push() {       # V -> TH_* -> the terminal
+tintcoat_edit_push() {       # V -> TH_* -> the terminal
   TH_BG=${V["BG"]}; TH_FG=${V["FG"]}; TH_CURSOR=${V["CURSOR"]}
   TH_SEL_BG=${V["SEL_BG"]}; TH_SEL_FG=${V["SEL_FG"]}
   TH_ANSI=()
   local i=0
   while [ $i -lt 16 ]; do TH_ANSI[$i]=${V["ANSI$i"]}; i=$((i+1)); done
-  tinct_apply_live
+  tintcoat_apply_live
 }
 
-tinct_edit_seed() {       # cache float HSL for a slot
+tintcoat_edit_seed() {       # cache float HSL for a slot
   local key=$1 cur hsl h s l
   cur=${V["$key"]}
   if [ -z "$cur" ]; then
     case $key in
-      ANSI*) cur=${TINCT_XTERM[${key#ANSI}]} ;;
+      ANSI*) cur=${TINTCOAT_XTERM[${key#ANSI}]} ;;
       *)     cur='#808080' ;;
     esac
   fi
-  hsl=$(tinct_hex2hsl "$cur")
+  hsl=$(tintcoat_hex2hsl "$cur")
   read -r h s l <<EOF
 $hsl
 EOF
   HH["$key"]=$h; SS["$key"]=$s; LL["$key"]=$l
 }
 
-tinct_edit_nudge() {      # <h|s|l> <delta>
-  local key=${TINCT_SLOTS[$CUR]} h s l
+tintcoat_edit_nudge() {      # <h|s|l> <delta>
+  local key=${TINTCOAT_SLOTS[$CUR]} h s l
   # Nudge the cached float, never a value re-derived from the rounded hex --
   # otherwise left/right would not round-trip and the hue drifts as you hold
   # a key down.
-  [ -n "${HH["$key"]}" ] || tinct_edit_seed "$key"
+  [ -n "${HH["$key"]}" ] || tintcoat_edit_seed "$key"
   h=${HH["$key"]}; s=${SS["$key"]}; l=${LL["$key"]}
   case $1 in
     h) h=$(awk -v v="$h" -v d="$2" 'BEGIN{v+=d; while(v<0)v+=360; while(v>=360)v-=360; print v}') ;;
@@ -79,13 +79,13 @@ tinct_edit_nudge() {      # <h|s|l> <delta>
     l) l=$(awk -v v="$l" -v d="$2" 'BEGIN{v+=d; if(v<0)v=0; if(v>100)v=100; print v}') ;;
   esac
   HH["$key"]=$h; SS["$key"]=$s; LL["$key"]=$l
-  V["$key"]=$(tinct_hsl2hex "$h" "$s" "$l")
+  V["$key"]=$(tintcoat_hsl2hex "$h" "$s" "$l")
   DIRTY=1
 }
 
-tinct_edit_write() {      # <name>
-  local dest=$TINCT_THEME_DIR/$1.theme i
-  mkdir -p "$TINCT_THEME_DIR"
+tintcoat_edit_write() {      # <name>
+  local dest=$TINTCOAT_THEME_DIR/$1.theme i
+  mkdir -p "$TINTCOAT_THEME_DIR"
   {
     printf '# %s\n' "$1"
     printf 'LABEL=%s\n' "$LABEL"
@@ -103,17 +103,17 @@ tinct_edit_write() {      # <name>
   } > "$dest"
 }
 
-tinct_draw_edit() {
+tintcoat_draw_edit() {
   local gcols grows band i c slot line warn
 
-  tinct_size
+  tintcoat_size
   band=$(( TERM_ROWS - 5 ))
   [ "$band" -lt 1 ] && band=1
 
-  gcols=$(( (TERM_COLS - 2) / TINCT_CELLW ))
+  gcols=$(( (TERM_COLS - 2) / TINTCOAT_CELLW ))
   [ "$gcols" -gt 3 ] && gcols=3
   [ "$gcols" -lt 1 ] && gcols=1
-  grows=$(( (${#TINCT_SLOTS[@]} + gcols - 1) / gcols ))
+  grows=$(( (${#TINTCOAT_SLOTS[@]} + gcols - 1) / gcols ))
 
   frame_reset
   out ""
@@ -140,9 +140,9 @@ tinct_draw_edit() {
         [ $i -ge 8 ] && slot=-1
       else
         slot=$(( i * gcols + c ))
-        [ "$slot" -ge ${#TINCT_SLOTS[@]} ] && slot=-1
+        [ "$slot" -ge ${#TINTCOAT_SLOTS[@]} ] && slot=-1
       fi
-      tinct_edit_cell "$slot"
+      tintcoat_edit_cell "$slot"
       line="${line}${CELL}"
       c=$((c+1))
     done
@@ -153,7 +153,7 @@ tinct_draw_edit() {
 
   out ""
   if [ -n "${V["FG"]}" ] && [ -n "${V["BG"]}" ]; then
-    tinct_contrast_into "${V["FG"]}" "${V["BG"]}"
+    tintcoat_contrast_into "${V["FG"]}" "${V["BG"]}"
     warn=''
     [ "$CONTRAST_LOW" = low ] && warn=" \033[38;5;1m· under AA (4.5)\033[0m"
     out "  \033[2mfg/bg contrast\033[0m ${CONTRAST}:1${warn}"
@@ -165,16 +165,16 @@ tinct_draw_edit() {
   local spare=$(( TERM_ROWS - FRAME_N - 3 ))
   if [ "$spare" -ge 11 ]; then
     out ""
-    tinct_swatch_row 0 7;  out "  $ROW"
-    tinct_swatch_row 8 15; out "  $ROW"
+    tintcoat_swatch_row 0 7;  out "  $ROW"
+    tintcoat_swatch_row 8 15; out "  $ROW"
     out ""
-    tinct_sample_lines
+    tintcoat_sample_lines
     i=0
     while [ $i -lt ${#SAMPLE[@]} ]; do out "  ${SAMPLE[$i]}"; i=$((i+1)); done
   elif [ "$spare" -ge 3 ]; then
     out ""
-    tinct_swatch_row 0 7;  out "  $ROW"
-    tinct_swatch_row 8 15; out "  $ROW"
+    tintcoat_swatch_row 0 7;  out "  $ROW"
+    tintcoat_swatch_row 8 15; out "  $ROW"
   fi
 
   out ""
@@ -185,28 +185,28 @@ tinct_draw_edit() {
   frame_flush
 }
 
-tinct_edit() {
+tintcoat_edit() {
   if [ ! -t 0 ] || [ ! -t 1 ]; then
-    printf 'tinct: the editor needs a terminal.\n' >&2
-    printf 'themes are plain text in %s\n' "$TINCT_THEME_DIR" >&2
+    printf 'tintcoat: the editor needs a terminal.\n' >&2
+    printf 'themes are plain text in %s\n' "$TINTCOAT_THEME_DIR" >&2
     return 1
   fi
 
   local file
-  EDIT_TTY=$(tinct_this_tty 2>/dev/null) || EDIT_TTY=''
+  EDIT_TTY=$(tintcoat_this_tty 2>/dev/null) || EDIT_TTY=''
   if [ -n "$1" ]; then
     NAME=$1
   else
-    tinct_resolve "$EDIT_TTY"; NAME=$RESOLVED
+    tintcoat_resolve "$EDIT_TTY"; NAME=$RESOLVED
   fi
-  file=$(tinct_theme_file "$NAME") || { printf 'tinct: no such theme: %s\n' "$NAME" >&2; return 1; }
+  file=$(tintcoat_theme_file "$NAME") || { printf 'tintcoat: no such theme: %s\n' "$NAME" >&2; return 1; }
 
   typeset -A V HH SS LL
   CUR=0; DIRTY=''; MSG=''
   local h newname
 
-  tinct_edit_load() {
-    tinct_load "$file"
+  tintcoat_edit_load() {
+    tintcoat_load "$file"
     LABEL=$TH_LABEL; DESC=$TH_DESC
     V=(); HH=(); SS=(); LL=()          # drop cached HSL, reseed from the file
     V["BG"]=$TH_BG; V["FG"]=$TH_FG; V["CURSOR"]=$TH_CURSOR
@@ -215,74 +215,74 @@ tinct_edit() {
     while [ $j -lt 16 ]; do V["ANSI$j"]=${TH_ANSI[$j]}; j=$((j+1)); done
     DIRTY=''
   }
-  tinct_edit_load
+  tintcoat_edit_load
 
-  tinct_raw_on
-  trap 'tinct_raw_off' EXIT INT TERM
+  tintcoat_raw_on
+  trap 'tintcoat_raw_off' EXIT INT TERM
   while :; do
-    tinct_edit_push
-    tinct_draw_edit
+    tintcoat_edit_push
+    tintcoat_draw_edit
     MSG=''
-    tinct_key
+    tintcoat_key
     case $KEY in
       up|k)    [ "$CUR" -gt 0 ] && CUR=$((CUR-1)) ;;
-      down|j)  [ "$CUR" -lt $(( ${#TINCT_SLOTS[@]} - 1 )) ] && CUR=$((CUR+1)) ;;
+      down|j)  [ "$CUR" -lt $(( ${#TINTCOAT_SLOTS[@]} - 1 )) ] && CUR=$((CUR+1)) ;;
       home)    CUR=0 ;;
-      end)     CUR=$(( ${#TINCT_SLOTS[@]} - 1 )) ;;
-      left)    tinct_edit_nudge l -2 ;;
-      right)   tinct_edit_nudge l  2 ;;
-      ',')     tinct_edit_nudge h -6 ;;
-      '.')     tinct_edit_nudge h  6 ;;
-      '-'|'_') tinct_edit_nudge s -4 ;;
-      '='|'+') tinct_edit_nudge s  4 ;;
+      end)     CUR=$(( ${#TINTCOAT_SLOTS[@]} - 1 )) ;;
+      left)    tintcoat_edit_nudge l -2 ;;
+      right)   tintcoat_edit_nudge l  2 ;;
+      ',')     tintcoat_edit_nudge h -6 ;;
+      '.')     tintcoat_edit_nudge h  6 ;;
+      '-'|'_') tintcoat_edit_nudge s -4 ;;
+      '='|'+') tintcoat_edit_nudge s  4 ;;
       x)
-        tinct_ask "hex for ${TINCT_SLOTLBL[$CUR]} (blank clears it):"
+        tintcoat_ask "hex for ${TINTCOAT_SLOTLBL[$CUR]} (blank clears it):"
         if [ -z "$ANSWER" ]; then
-          V["${TINCT_SLOTS[$CUR]}"]=''
-          unset "HH[${TINCT_SLOTS[$CUR]}]"
+          V["${TINTCOAT_SLOTS[$CUR]}"]=''
+          unset "HH[${TINTCOAT_SLOTS[$CUR]}]"
           DIRTY=1
-        elif h=$(tinct_norm_hex "$ANSWER"); then
-          V["${TINCT_SLOTS[$CUR]}"]=$h
-          tinct_edit_seed "${TINCT_SLOTS[$CUR]}"
+        elif h=$(tintcoat_norm_hex "$ANSWER"); then
+          V["${TINTCOAT_SLOTS[$CUR]}"]=$h
+          tintcoat_edit_seed "${TINTCOAT_SLOTS[$CUR]}"
           DIRTY=1
         else
           MSG="\033[38;5;1mnot a hex color: ${ANSWER}\033[0m"
         fi ;;
       w)
-        tinct_edit_write "$NAME"
+        tintcoat_edit_write "$NAME"
         # Saving pins the theme to the terminal you are looking at. It does
         # not touch the default -- editing one window's colors should not
         # change what every future window opens with.
-        [ -n "$EDIT_TTY" ] && tinct_session_set "$EDIT_TTY" "$NAME"
-        file=$TINCT_THEME_DIR/$NAME.theme
+        [ -n "$EDIT_TTY" ] && tintcoat_session_set "$EDIT_TTY" "$NAME"
+        file=$TINTCOAT_THEME_DIR/$NAME.theme
         DIRTY=''
-        MSG="\033[38;5;2msaved\033[0m ${TINCT_THEME_DIR}/${NAME}.theme" ;;
+        MSG="\033[38;5;2msaved\033[0m ${TINTCOAT_THEME_DIR}/${NAME}.theme" ;;
       a)
-        tinct_ask "save as:"
+        tintcoat_ask "save as:"
         if [ -n "$ANSWER" ]; then
-          newname=$(tinct_slug "$ANSWER")
+          newname=$(tintcoat_slug "$ANSWER")
           if [ -n "$newname" ]; then
             LABEL=$newname; NAME=$newname
-            file=$TINCT_THEME_DIR/$NAME.theme
-            tinct_edit_write "$NAME"
-            [ -n "$EDIT_TTY" ] && tinct_session_set "$EDIT_TTY" "$NAME"
+            file=$TINTCOAT_THEME_DIR/$NAME.theme
+            tintcoat_edit_write "$NAME"
+            [ -n "$EDIT_TTY" ] && tintcoat_session_set "$EDIT_TTY" "$NAME"
             DIRTY=''
             MSG="\033[38;5;2mcreated\033[0m ${file}"
           fi
         fi ;;
-      r) tinct_edit_load; MSG='reverted to the saved file' ;;
+      r) tintcoat_edit_load; MSG='reverted to the saved file' ;;
       q|quit|esc) break ;;
     esac
   done
   trap - EXIT INT TERM
-  tinct_raw_off
+  tintcoat_raw_off
 
   if [ -n "$DIRTY" ]; then
     printf 'unsaved changes to %s were discarded\n' "$NAME"
-    tinct_resolve "$EDIT_TTY"
-    tinct_load "$RESOLVED" && tinct_apply_live
+    tintcoat_resolve "$EDIT_TTY"
+    tintcoat_load "$RESOLVED" && tintcoat_apply_live
   else
-    tinct_edit_push
+    tintcoat_edit_push
     printf '%s applied\n' "$NAME"
   fi
 }

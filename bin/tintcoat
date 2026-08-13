@@ -1,5 +1,5 @@
 #!/bin/sh
-# tinct -- terminal color themes, applied to the session you are already in.
+# tintcoat -- terminal color themes, applied to the session you are already in.
 #
 # This is a launcher, not the program. It resolves the checkout directory and
 # picks an interpreter: zsh if present, otherwise bash 4 or newer. macOS ships
@@ -8,7 +8,7 @@
 
 set -e
 
-# Resolve this script through any symlinks, so `ln -s .../bin/tinct ~/bin/tinct`
+# Resolve this script through any symlinks, so `ln -s .../bin/tintcoat ~/bin/tintcoat`
 # still finds lib/ and themes/ next door.
 self=$0
 while [ -h "$self" ]; do
@@ -18,14 +18,14 @@ while [ -h "$self" ]; do
     *)  self=$(dirname "$self")/$link ;;
   esac
 done
-TINCT_ROOT=$(cd -- "$(dirname "$self")/.." && pwd -P)
-export TINCT_ROOT
+TINTCOAT_ROOT=$(cd -- "$(dirname "$self")/.." && pwd -P)
+export TINTCOAT_ROOT
 
 pick_shell() {
   # An explicit choice wins -- the test suite uses it to run the whole suite
   # once per shell.
-  if [ -n "${TINCT_SHELL:-}" ]; then
-    printf '%s' "$TINCT_SHELL"; return 0
+  if [ -n "${TINTCOAT_SHELL:-}" ]; then
+    printf '%s' "$TINTCOAT_SHELL"; return 0
   fi
 
   if command -v zsh >/dev/null 2>&1; then
@@ -47,7 +47,7 @@ pick_shell() {
 
 if ! sh_bin=$(pick_shell); then
   cat >&2 <<'EOF'
-tinct needs zsh, or bash 4 or newer.
+tintcoat needs zsh, or bash 4 or newer.
 
 macOS still ships bash 3.2, which cannot run this. Either is fine:
     brew install zsh
@@ -56,4 +56,4 @@ EOF
   exit 1
 fi
 
-exec "$sh_bin" "$TINCT_ROOT/lib/main.sh" "$@"
+exec "$sh_bin" "$TINTCOAT_ROOT/lib/main.sh" "$@"

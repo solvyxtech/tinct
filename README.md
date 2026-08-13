@@ -1,6 +1,6 @@
-# tinct
+# tintcoat
 
-[![tests](https://github.com/solvyxtech/tinct/actions/workflows/tests.yml/badge.svg)](https://github.com/solvyxtech/tinct/actions/workflows/tests.yml)
+[![tests](https://github.com/solvyxtech/tintcoat/actions/workflows/tests.yml/badge.svg)](https://github.com/solvyxtech/tintcoat/actions/workflows/tests.yml)
 
 Terminal color themes that apply to the session you are already in.
 
@@ -9,10 +9,10 @@ its own theme, so the window you use for production does not have to look like
 the one you use for scratch work.
 
 ```
-tinct                     pick a theme, previewing as you move
-tinct set nord            just this terminal
-tinct set nord --all      every terminal you have open
-tinct sessions            what each terminal is showing
+tintcoat                     pick a theme, previewing as you move
+tintcoat set nord            just this terminal
+tintcoat set nord --all      every terminal you have open
+tintcoat sessions            what each terminal is showing
 ```
 
 ## Why this exists
@@ -36,7 +36,7 @@ retinted along with everything else. That is the whole trick.
 ## Why it works
 
 Most theme switchers rewrite a config file and tell you to open a new window.
-tinct writes OSC escape sequences straight to the terminal device instead:
+tintcoat writes OSC escape sequences straight to the terminal device instead:
 
 | Sequence | What it sets |
 | --- | --- |
@@ -46,8 +46,8 @@ tinct writes OSC escape sequences straight to the terminal device instead:
 | `OSC 104`, `110`–`119` | reset the above |
 
 Every mainstream terminal has supported these for years. Because a terminal
-device is just a file you can write to, tinct can also paint a window it is not
-running in — which is what makes `--all` and `--tty` possible at all.
+device is just a file you can write to, tintcoat can also paint a window it is
+not running in — which is what makes `--all` and `--tty` possible at all.
 
 ## A theme per terminal
 
@@ -56,19 +56,19 @@ preference of its own uses the default, so new windows stay predictable while
 any individual one can be pinned to something else.
 
 ```
-tinct set nord                 pin this terminal
-tinct set nord --default       ...and make it the default for new terminals
-tinct set nord --all           paint every open terminal
-tinct set nord --tty ttys004   paint one specific terminal
-tinct clear                    unpin, go back to the default
-tinct clear --all              unpin everything
+tintcoat set nord                 pin this terminal
+tintcoat set nord --default       ...and make it the default for new terminals
+tintcoat set nord --all           paint every open terminal
+tintcoat set nord --tty ttys004   paint one specific terminal
+tintcoat clear                    unpin, go back to the default
+tintcoat clear --all              unpin everything
 ```
 
-`tinct sessions` shows every terminal you have open and lets you change any of
-them without leaving the list:
+`tintcoat sessions` shows every terminal you have open and lets you change any
+of them without leaving the list:
 
 ```
-  tinct  4 open · ⏎ to change one
+  tintcoat  4 open · ⏎ to change one
 
 ▸ ttys004   nord                 zsh         pinned  ·you    Nord
   ttys006   gruvbox-dark         vim         default         Arctic north-bluish
@@ -87,14 +87,14 @@ Because the target window is not this one, the preview here is drawn from the
 theme's own color values rather than from your palette — otherwise it would be
 showing you your colors while claiming to show theirs.
 
-Piped or redirected, `tinct sessions` prints a plain listing instead, so it
-stays usable in scripts. `tinct which` answers the narrower question of what
+Piped or redirected, `tintcoat sessions` prints a plain listing instead, so it
+stays usable in scripts. `tintcoat which` answers the narrower question of what
 this terminal is on and why. Records for terminals that no longer exist are
 cleaned up automatically, since tty names get recycled when windows close.
 
 ## Rules: themes that apply themselves
 
-`~/.config/tinct/rules` maps directories and ssh hosts to themes. First match
+`~/.config/tintcoat/rules` maps directories and ssh hosts to themes. First match
 wins, so put the specific ones first.
 
 ```
@@ -129,11 +129,11 @@ Two other honest limits:
   `fg` does not re-apply it, because the two shells suspend different things
   (zsh stops the whole wrapper, bash stops only the child and runs the rest of
   the wrapper immediately), and neither offers a hook the wrapper can catch on
-  the way back in. Re-run `tinct set <theme>` if it matters.
+  the way back in. Re-run `tintcoat set <theme>` if it matters.
 
 ## Themes
 
-100 of them: 75 dark, 25 light. **[See them all →](https://solvyxtech.github.io/tinct/)**
+100 of them: 75 dark, 25 light. **[See them all →](https://solvyxtech.github.io/tintcoat/)**
 — every theme previewed in its own colors, generated from the theme files by
 `tools/gallery.py` so it cannot drift from what ships.
 
@@ -196,12 +196,12 @@ Requires **zsh**, or **bash 4 or newer**. macOS still ships bash 3.2, which
 cannot run this — but it also ships zsh, so on a Mac there is nothing to do.
 
 ```
-git clone https://github.com/solvyxtech/tinct.git ~/.local/share/tinct
-~/.local/share/tinct/install.sh
+git clone https://github.com/solvyxtech/tintcoat.git ~/.local/share/tintcoat
+~/.local/share/tintcoat/install.sh
 ```
 
-The installer symlinks `bin/tinct` into `~/.local/bin` and creates
-`~/.config/tinct`. Nothing else is touched.
+The installer symlinks `bin/tintcoat` into `~/.local/bin` and creates
+`~/.config/tintcoat`. Nothing else is touched.
 
 ## Shell integration
 
@@ -209,25 +209,25 @@ Optional, and where the automatic parts live. Source it from `~/.zshrc` or
 `~/.bashrc`:
 
 ```sh
-. ~/.local/share/tinct/shell/init.sh
+. ~/.local/share/tintcoat/shell/init.sh
 
-tinct_enable_auto              # this terminal's theme, reapplied on cd
-tinct_wrap_ssh                 # ssh themed by host rules
-tinct_wrap psql solarized-dark # theme one command while it runs
+tintcoat_enable_auto              # this terminal's theme, reapplied on cd
+tintcoat_wrap_ssh                 # ssh themed by host rules
+tintcoat_wrap psql solarized-dark # theme one command while it runs
 ```
 
-`tinct_wrap` applies a theme on entry and hands the terminal back on exit,
+`tintcoat_wrap` applies a theme on entry and hands the terminal back on exit,
 including when you interrupt it. Piped output and nested calls pass through
-untouched, so scripts are unaffected. `TINCT_DISABLE=1` turns all of it off.
+untouched, so scripts are unaffected. `TINTCOAT_DISABLE=1` turns all of it off.
 
-The hooks do their lookups in pure shell and fork nothing. Launching tinct costs
-about 20ms, which is fine once but not on every prompt, so the program is only
-started when the answer actually changes — `cd` inside one project is free.
+The hooks do their lookups in pure shell and fork nothing. Launching tintcoat
+costs about 20ms, which is fine once but not on every prompt, so the program is
+only started when the answer actually changes — `cd` inside one project is free.
 
 ## The picker
 
 ```
-  tinct  100 themes · here: night-owl
+  tintcoat  100 themes · here: night-owl
 
       mono-slate           │   Nord
       monokai              │   Arctic north-bluish, official palette
@@ -235,7 +235,7 @@ started when the answer actually changes — `cd` inside one project is free.
       moss-stone           █   bg #2E3440  fg #D8DEE9
       nebula               █   contrast 9.2:1
       neon-alley           │
-      newsprint            │   ~/src/tinct main ±
+      newsprint            │   ~/src/tintcoat main ±
   ●   night-owl            │   $ git commit -m 'retune the palette'
     ▸ nord                 │    + accent = "#8EC07C"
       obsidian             │   bold primary  dim secondary
@@ -260,7 +260,7 @@ viewport, so the cursor is always on screen no matter how many themes you have.
 
 ## The editor
 
-`tinct edit <name>` walks the twenty-one color slots.
+`tintcoat edit <name>` walks the twenty-one color slots.
 
 | Key | Effect |
 | --- | --- |
@@ -277,7 +277,7 @@ It shows the foreground/background contrast ratio and flags anything below
 WCAG AA. Nudges are kept in floating-point HSL rather than re-derived from the
 rounded hex each time, so holding a key down does not drift the hue.
 
-Editing a bundled theme writes your copy to `~/.config/tinct/themes/`, which
+Editing a bundled theme writes your copy to `~/.config/tintcoat/themes/`, which
 shadows the bundled one. The checkout is never modified, so `git pull` stays
 clean.
 
@@ -303,22 +303,22 @@ ANSI1=#BF616A
 ANSI15=#ECEFF4
 ```
 
-`tinct new <name>` copies the current theme as a starting point.
+`tintcoat new <name>` copies the current theme as a starting point.
 
 ## Files
 
 | Path | What |
 | --- | --- |
-| `~/.config/tinct/default` | theme for new terminals |
-| `~/.config/tinct/sessions/` | one file per pinned terminal |
-| `~/.config/tinct/rules` | directory and host rules |
-| `~/.config/tinct/themes/` | your themes; shadow bundled ones by name |
-| `~/.config/tinct/config` | `scrolloff`, and anything else general |
+| `~/.config/tintcoat/default` | theme for new terminals |
+| `~/.config/tintcoat/sessions/` | one file per pinned terminal |
+| `~/.config/tintcoat/rules` | directory and host rules |
+| `~/.config/tintcoat/themes/` | your themes; shadow bundled ones by name |
+| `~/.config/tintcoat/config` | `scrolloff`, and anything else general |
 
 ## Layout
 
 ```
-bin/tinct        launcher: picks zsh or bash 4+, then runs lib/main.sh
+bin/tintcoat        launcher: picks zsh or bash 4+, then runs lib/main.sh
 lib/core.sh      themes, color math, escape sequences, sessions, rules
 lib/ui.sh        picker, viewport, preview
 lib/edit.sh      color editor
@@ -368,6 +368,16 @@ allowed to hang, crash, print a shell error, or leave state half-written.
 
 State files are written to a temporary name and renamed into place, so a reader
 arriving mid-write sees the old value or the new one, never an empty file.
+
+## Previously called tinct
+
+Up to v1.1.0 this was `tinct`, which turned out to be a name that half the
+internet was already using. v2.0.0 renames the command, the environment
+variables (`TINCT_*` is now `TINTCOAT_*`) and the config directory. If you have
+a `~/.config/tinct` from the old version, it is moved to `~/.config/tintcoat`
+the first time you run the new one, so pins, rules and your own themes survive.
+Update the path in your shell rc and re-run `install.sh` to replace the old
+symlink.
 
 ## License
 

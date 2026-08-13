@@ -42,11 +42,11 @@ jobs:
           python3 --version
 
       # Runners are slower and more variable than a laptop, and several suites
-      # drive a pty with real timing. TINCT_TEST_SLOW scales those waits.
+      # drive a pty with real timing. TINTCOAT_TEST_SLOW scales those waits.
       - name: Run the suite
         run: tests/run.sh
         env:
-          TINCT_TEST_SLOW: "3"
+          TINTCOAT_TEST_SLOW: "3"
 
   lint:
     name: shellcheck
@@ -62,7 +62,7 @@ jobs:
           # The launcher and installer are POSIX sh. SC2016 is excluded because
           # the single quotes in 'echo ${BASH_VERSINFO[0]}' are the point: that
           # string is evaluated by the bash being probed, not by this shell.
-          shellcheck -s sh -e SC2016 bin/tinct install.sh tests/run.sh
+          shellcheck -s sh -e SC2016 bin/tintcoat install.sh tests/run.sh
           # lib/ and shell/ are a zsh/bash intersection. shellcheck only knows
           # bash, so the zsh-only expansions it cannot parse are excluded by
           # code rather than by ignoring whole files:

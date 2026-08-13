@@ -1,76 +1,89 @@
-# tinct core: theme files, color math, and talking to the terminal.
+# tintcoat core: theme files, color math, and talking to the terminal.
 #
-# Written for the zsh/bash intersection -- see bin/tinct for how the
+# Written for the zsh/bash intersection -- see bin/tintcoat for how the
 # interpreter gets picked. Two rules keep it portable:
 #   * arrays are 0-indexed (zsh gets ksh_arrays set for us)
 #   * associative subscripts are always quoted, or zsh reads them as globs
 
 # --- paths -------------------------------------------------------------------
-: "${TINCT_HOME:=${XDG_CONFIG_HOME:-$HOME/.config}/tinct}"
-: "${TINCT_THEME_DIR:=$TINCT_HOME/themes}"
-: "${TINCT_ACTIVE_FILE:=$TINCT_HOME/active}"
-: "${TINCT_CONFIG_FILE:=$TINCT_HOME/config}"
-: "${TINCT_SESSION_DIR:=$TINCT_HOME/sessions}"
-: "${TINCT_RULES_FILE:=$TINCT_HOME/rules}"
+# This program used to be called tinct. If the old config directory is still
+# there and the new one is not, move it across once, so an upgrade keeps its
+# pins, rules and themes. Skipped entirely when the caller has pointed
+# TINTCOAT_HOME somewhere itself -- the test suite does exactly that, and it
+# has no business touching a real config directory.
+if [ -z "${TINTCOAT_HOME:-}" ]; then
+  TINTCOAT_HOME=${XDG_CONFIG_HOME:-$HOME/.config}/tintcoat
+  tintcoat_legacy_home=${XDG_CONFIG_HOME:-$HOME/.config}/tinct
+  if [ ! -e "$TINTCOAT_HOME" ] && [ -d "$tintcoat_legacy_home" ] &&
+     [ ! -L "$tintcoat_legacy_home" ]; then
+    mv "$tintcoat_legacy_home" "$TINTCOAT_HOME" 2>/dev/null || :
+  fi
+  unset tintcoat_legacy_home
+fi
+: "${TINTCOAT_THEME_DIR:=$TINTCOAT_HOME/themes}"
+: "${TINTCOAT_ACTIVE_FILE:=$TINTCOAT_HOME/active}"
+: "${TINTCOAT_CONFIG_FILE:=$TINTCOAT_HOME/config}"
+: "${TINTCOAT_SESSION_DIR:=$TINTCOAT_HOME/sessions}"
+: "${TINTCOAT_RULES_FILE:=$TINTCOAT_HOME/rules}"
 
 # Themes ship with the checkout and are also read from the user's config dir.
 # The user's copy wins, so editing a bundled theme never touches the repo.
-: "${TINCT_BUNDLED_DIR:=$TINCT_ROOT/themes}"
+: "${TINTCOAT_BUNDLED_DIR:=$TINTCOAT_ROOT/themes}"
 
 # --- config ------------------------------------------------------------------
 # config is KEY=value, '#' comments. Recognized keys:
 #   watch=psql,vim     also repaint the terminals of these running programs
 #   scrolloff=2        rows of context to keep above/below the picker cursor
-TINCT_WATCH=""
-TINCT_SCROLLOFF=2
+TINTCOAT_WATCH=""
+TINTCOAT_SCROLLOFF=2
 
-tinct_read_config() {
+tintcoat_read_config() {
   local line key val
-  [ -r "$TINCT_CONFIG_FILE" ] || return 0
+  [ -r "$TINTCOAT_CONFIG_FILE" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
     case $line in ''|'#'*) continue ;; esac
     case $line in *=*) ;; *) continue ;; esac
-    tinct_trim_into "${line%%=*}"; key=$TRIMMED
-    tinct_trim_into "${line#*=}"; val=$TRIMMED
+    tintcoat_trim_into "${line%%=*}"; key=$TRIMMED
+    tintcoat_trim_into "${line#*=}"; val=$TRIMMED
     case $key in
-      watch)     TINCT_WATCH=$val ;;
-      scrolloff) TINCT_SCROLLOFF=$val ;;
+      watch)     TINTCOAT_WATCH=$val ;;
+      scrolloff) TINTCOAT_SCROLLOFF=$val ;;
     esac
-  done < "$TINCT_CONFIG_FILE"
+  done < "$TINTCOAT_CONFIG_FILE"
 }
 
 # --- small string helpers ----------------------------------------------------
-TINCT_TAB=$(printf '\t')
+TINTCOAT_TAB=$(printf '\t')
 
 # Strip ASCII space and tab from both ends. The result lands in TRIMMED rather
 # than on stdout: theme parsing calls this a few thousand times over a full
 # listing, and a fork per call is the difference between instant and sluggish.
-tinct_trim_into() {
+tintcoat_trim_into() {
   local s=$1
   while :; do
     case $s in
-      ' '*|"$TINCT_TAB"*) s=${s#?} ;;
+      ' '*|"$TINTCOAT_TAB"*) s=${s#?} ;;
       *) break ;;
     esac
   done
   while :; do
     case $s in
-      *' '|*"$TINCT_TAB") s=${s%?} ;;
+      *' '|*"$TINTCOAT_TAB") s=${s%?} ;;
       *) break ;;
     esac
   done
   TRIMMED=$s
 }
 
-tinct_trim() { tinct_trim_into "$1"; printf '%s' "$TRIMMED"; }
+tintcoat_trim() { tintcoat_trim_into "$1"; printf '%s' "$TRIMMED"; }
 
-tinct_upper() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]'; }
+tintcoat_upper() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]'; }
 
 # Is this a color we are willing to hand to a terminal? Anything else in a
 # theme file gets dropped rather than forwarded -- a hand-edited theme should
 # lose one color, not send garbage down the wire inside an escape sequence.
-tinct_is_hex() {
+tintcoat_is_hex() {
   case $1 in
     '#'[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) return 0 ;;
     '#'[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) return 0 ;;
@@ -82,13 +95,13 @@ tinct_is_hex() {
 # unquoted $var in a case pattern as a pattern; zsh does not without
 # GLOB_SUBST, and ${~var} is the local way of asking for it.
 if [ -n "${ZSH_VERSION:-}" ]; then
-  tinct_glob_match() { case $1 in ${~2}) return 0 ;; esac; return 1; }
+  tintcoat_glob_match() { case $1 in ${~2}) return 0 ;; esac; return 1; }
 else
-  tinct_glob_match() { case $1 in $2) return 0 ;; esac; return 1; }
+  tintcoat_glob_match() { case $1 in $2) return 0 ;; esac; return 1; }
 fi
 
 # Names become filenames, so keep them to a safe set.
-tinct_slug() {
+tintcoat_slug() {
   printf '%s' "$1" | tr ' ' '-' | tr -cd 'A-Za-z0-9_-'
 }
 
@@ -96,7 +109,7 @@ tinct_slug() {
 # Hex parsing happens in the shell (cheap). Anything needing floats goes to
 # awk -- and deliberately to POSIX awk, so no gawk-only strtonum()/tolower().
 
-tinct_hex2rgb() {          # "#RRGGBB" -> "R G B"
+tintcoat_hex2rgb() {          # "#RRGGBB" -> "R G B"
   local h=${1#\#}
   # Length alone is not enough: a hand-edited theme can hold six characters
   # that are not hex, and feeding those to printf produces shell errors rather
@@ -115,7 +128,7 @@ tinct_hex2rgb() {          # "#RRGGBB" -> "R G B"
 # Same conversion into R/G/B globals, without a subshell. Base-16 arithmetic
 # expansion is understood by both shells, which matters because the preview
 # converts every palette entry on every frame.
-tinct_hex2rgb_into() {     # "#RRGGBB" -> R, G, B
+tintcoat_hex2rgb_into() {     # "#RRGGBB" -> R, G, B
   local h=${1#\#}
   case $h in
     *[!0-9A-Fa-f]*) h=808080 ;;
@@ -128,8 +141,8 @@ tinct_hex2rgb_into() {     # "#RRGGBB" -> R, G, B
   R=$(( 16#${h:0:2} )); G=$(( 16#${h:2:2} )); B=$(( 16#${h:4:2} ))
 }
 
-tinct_hex2hsl() {          # "#RRGGBB" -> "H S L" as floats
-  local rgb; rgb=$(tinct_hex2rgb "$1")
+tintcoat_hex2hsl() {          # "#RRGGBB" -> "H S L" as floats
+  local rgb; rgb=$(tintcoat_hex2rgb "$1")
   awk -v rgb="$rgb" 'BEGIN{
     split(rgb, c, " ")
     r = c[1]/255; g = c[2]/255; b = c[3]/255
@@ -151,7 +164,7 @@ tinct_hex2hsl() {          # "#RRGGBB" -> "H S L" as floats
   }'
 }
 
-tinct_hsl2hex() {          # H S L -> "#RRGGBB"
+tintcoat_hsl2hex() {          # H S L -> "#RRGGBB"
   awk -v h="$1" -v s="$2" -v l="$3" 'BEGIN{
     while (h < 0)    h += 360
     while (h >= 360) h -= 360
@@ -181,17 +194,17 @@ tinct_hsl2hex() {          # H S L -> "#RRGGBB"
 # Ratio plus verdict in one awk call, memoized by color pair. The picker asks
 # for this on every cursor move, and two forks per keystroke is most of the
 # reason the old one felt sluggish.
-typeset -A TINCT_CONTRAST_MEMO 2>/dev/null || true
+typeset -A TINTCOAT_CONTRAST_MEMO 2>/dev/null || true
 
-tinct_contrast_into() {    # <fg> <bg> -> CONTRAST, CONTRAST_LOW
+tintcoat_contrast_into() {    # <fg> <bg> -> CONTRAST, CONTRAST_LOW
   local key="$1/$2" cached
-  cached=${TINCT_CONTRAST_MEMO["$key"]}
+  cached=${TINTCOAT_CONTRAST_MEMO["$key"]}
   if [ -n "$cached" ]; then
     CONTRAST=${cached% *}; CONTRAST_LOW=${cached#* }
     return 0
   fi
   local a b out
-  a=$(tinct_hex2rgb "$1"); b=$(tinct_hex2rgb "$2")
+  a=$(tintcoat_hex2rgb "$1"); b=$(tintcoat_hex2rgb "$2")
   out=$(awk -v A="$a" -v B="$b" 'BEGIN{
     split(A, x, " "); split(B, y, " ")
     la = lum(x[1],x[2],x[3]); lb = lum(y[1],y[2],y[3])
@@ -201,13 +214,13 @@ tinct_contrast_into() {    # <fg> <bg> -> CONTRAST, CONTRAST_LOW
   function chan(v) { v /= 255; return (v <= 0.03928) ? v/12.92 : exp(2.4*log((v+0.055)/1.055)) }
   function lum(r,g,b) { return 0.2126*chan(r) + 0.7152*chan(g) + 0.0722*chan(b) }
   function ratio(hi,lo) { return (hi + 0.05) / (lo + 0.05) }')
-  TINCT_CONTRAST_MEMO["$key"]=$out
+  TINTCOAT_CONTRAST_MEMO["$key"]=$out
   CONTRAST=${out% *}; CONTRAST_LOW=${out#* }
 }
 
-tinct_contrast() {         # two hexes -> WCAG contrast ratio, one decimal
-  local a; a=$(tinct_hex2rgb "$1")
-  local b; b=$(tinct_hex2rgb "$2")
+tintcoat_contrast() {         # two hexes -> WCAG contrast ratio, one decimal
+  local a; a=$(tintcoat_hex2rgb "$1")
+  local b; b=$(tintcoat_hex2rgb "$2")
   awk -v A="$a" -v B="$b" 'BEGIN{
     split(A, x, " "); split(B, y, " ")
     printf "%.1f", (lum(x[1],x[2],x[3]) > lum(y[1],y[2],y[3])) \
@@ -228,24 +241,24 @@ TH_NAME=""; TH_LABEL=""; TH_DESC=""
 TH_BG=""; TH_FG=""; TH_CURSOR=""; TH_SEL_BG=""; TH_SEL_FG=""
 TH_ANSI=()
 
-tinct_theme_file() {       # name -> readable path, user dir winning
+tintcoat_theme_file() {       # name -> readable path, user dir winning
   local n=$1
   # -f, not -e or -r: a directory called "something.theme" is readable, and
   # trying to read one is an error rather than an empty theme.
-  if [ -f "$TINCT_THEME_DIR/$n.theme" ] && [ -r "$TINCT_THEME_DIR/$n.theme" ]; then
-    printf '%s' "$TINCT_THEME_DIR/$n.theme"
-  elif [ -f "$TINCT_BUNDLED_DIR/$n.theme" ] && [ -r "$TINCT_BUNDLED_DIR/$n.theme" ]; then
-    printf '%s' "$TINCT_BUNDLED_DIR/$n.theme"
+  if [ -f "$TINTCOAT_THEME_DIR/$n.theme" ] && [ -r "$TINTCOAT_THEME_DIR/$n.theme" ]; then
+    printf '%s' "$TINTCOAT_THEME_DIR/$n.theme"
+  elif [ -f "$TINTCOAT_BUNDLED_DIR/$n.theme" ] && [ -r "$TINTCOAT_BUNDLED_DIR/$n.theme" ]; then
+    printf '%s' "$TINTCOAT_BUNDLED_DIR/$n.theme"
   else
     return 1
   fi
 }
 
-tinct_load() {             # name-or-path -> TH_* globals
+tintcoat_load() {             # name-or-path -> TH_* globals
   local file=$1 line key val i
   case $file in
     */*) ;;
-    *) file=$(tinct_theme_file "$file") || return 1 ;;
+    *) file=$(tintcoat_theme_file "$file") || return 1 ;;
   esac
   [ -f "$file" ] && [ -r "$file" ] || return 1
 
@@ -257,17 +270,17 @@ tinct_load() {             # name-or-path -> TH_* globals
 
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
-    tinct_trim_into "$line"; line=$TRIMMED
+    tintcoat_trim_into "$line"; line=$TRIMMED
     case $line in ''|'#'*) continue ;; esac
     case $line in *=*) ;; *) continue ;; esac
-    tinct_trim_into "${line%%=*}"; key=$TRIMMED
-    tinct_trim_into "${line#*=}"; val=$TRIMMED
+    tintcoat_trim_into "${line%%=*}"; key=$TRIMMED
+    tintcoat_trim_into "${line#*=}"; val=$TRIMMED
     case $key in
       LABEL)  TH_LABEL=$val; continue ;;
       DESC)   TH_DESC=$val; continue ;;
     esac
     # Everything below here is a color, so anything unusable is discarded.
-    tinct_is_hex "$val" || continue
+    tintcoat_is_hex "$val" || continue
     case $key in
       BG)     TH_BG=$val ;;
       FG)     TH_FG=$val ;;
@@ -284,9 +297,9 @@ tinct_load() {             # name-or-path -> TH_* globals
   return 0
 }
 
-tinct_list() {             # every theme name, user dir shadowing bundled
+tintcoat_list() {             # every theme name, user dir shadowing bundled
   local d f b
-  for d in "$TINCT_THEME_DIR" "$TINCT_BUNDLED_DIR"; do
+  for d in "$TINTCOAT_THEME_DIR" "$TINTCOAT_BUNDLED_DIR"; do
     [ -d "$d" ] || continue
     for f in "$d"/*.theme; do
       [ -f "$f" ] || continue
@@ -308,11 +321,11 @@ tinct_list() {             # every theme name, user dir shadowing bundled
 # Real ESC and BEL bytes, resolved once. Building the sequence out of literal
 # "\033" text would mean a printf '%b' -- and therefore a fork -- every time it
 # is written out, which in the picker is every keystroke.
-TINCT_ESC=$(printf '\033')
-TINCT_BEL=$(printf '\a')
+TINTCOAT_ESC=$(printf '\033')
+TINTCOAT_BEL=$(printf '\a')
 
-tinct_seq_into() {
-  local e=$TINCT_ESC b=$TINCT_BEL out i c
+tintcoat_seq_into() {
+  local e=$TINTCOAT_ESC b=$TINTCOAT_BEL out i c
   out="${e}]104${b}"                    # clear whatever the last theme left
   [ -n "$TH_FG" ]     && out="${out}${e}]10;${TH_FG}${b}"
   [ -n "$TH_BG" ]     && out="${out}${e}]11;${TH_BG}${b}"
@@ -328,10 +341,10 @@ tinct_seq_into() {
   SEQ=$out
 }
 
-tinct_seq() { tinct_seq_into; printf '%s' "$SEQ"; }
+tintcoat_seq() { tintcoat_seq_into; printf '%s' "$SEQ"; }
 
-tinct_reset_seq() {
-  local e=$TINCT_ESC b=$TINCT_BEL
+tintcoat_reset_seq() {
+  local e=$TINTCOAT_ESC b=$TINTCOAT_BEL
   printf '%s' "${e}]110${b}${e}]111${b}${e}]112${b}${e}]117${b}${e}]119${b}${e}]104${b}"
 }
 
@@ -346,14 +359,14 @@ tinct_reset_seq() {
 # The result is cached for the life of the process: a picker session rebuilds
 # this on every keypress otherwise, and scanning the process table is by far
 # the most expensive thing in a redraw.
-TINCT_TTYS_CACHE=""
-TINCT_TTYS_CACHED=0
+TINTCOAT_TTYS_CACHE=""
+TINTCOAT_TTYS_CACHED=0
 
-tinct_ttys_uncached() {
+tintcoat_ttys_uncached() {
   local line tty d seen=""
   while IFS= read -r line; do
     # ps pads its columns, so the name arrives with trailing spaces attached.
-    tinct_trim_into "$line"; tty=$TRIMMED
+    tintcoat_trim_into "$line"; tty=$TRIMMED
     [ -n "$tty" ] || continue
     [ "$tty" = "??" ] && continue
     d="/dev/$tty"
@@ -366,24 +379,24 @@ $(ps -Ao tty= 2>/dev/null | sort -u)
 EOF
 }
 
-tinct_ttys() {
-  if [ -n "${TINCT_TTY:-}" ]; then
-    printf '%s\n' "$TINCT_TTY"
+tintcoat_ttys() {
+  if [ -n "${TINTCOAT_TTY:-}" ]; then
+    printf '%s\n' "$TINTCOAT_TTY"
     return 0
   fi
-  if [ "$TINCT_TTYS_CACHED" = 1 ]; then
-    printf '%s' "$TINCT_TTYS_CACHE"
+  if [ "$TINTCOAT_TTYS_CACHED" = 1 ]; then
+    printf '%s' "$TINTCOAT_TTYS_CACHE"
     return 0
   fi
-  TINCT_TTYS_CACHE=$(tinct_ttys_uncached)
-  [ -n "$TINCT_TTYS_CACHE" ] && TINCT_TTYS_CACHE="$TINCT_TTYS_CACHE
+  TINTCOAT_TTYS_CACHE=$(tintcoat_ttys_uncached)
+  [ -n "$TINTCOAT_TTYS_CACHE" ] && TINTCOAT_TTYS_CACHE="$TINTCOAT_TTYS_CACHE
 "
-  TINCT_TTYS_CACHED=1
-  printf '%s' "$TINCT_TTYS_CACHE"
+  TINTCOAT_TTYS_CACHED=1
+  printf '%s' "$TINTCOAT_TTYS_CACHE"
 }
 
 # The terminal this process is attached to, as a bare name (ttys009).
-tinct_this_tty() {
+tintcoat_this_tty() {
   local t
   t=$(tty 2>/dev/null) || return 1
   case $t in
@@ -393,9 +406,9 @@ tinct_this_tty() {
 }
 
 # Write a sequence to specific terminals. Appending rather than truncating is
-# identical for a tty device, but it keeps TINCT_TTY=<a regular file> usable as
+# identical for a tty device, but it keeps TINTCOAT_TTY=<a regular file> usable as
 # a capture log for the test suite.
-tinct_emit_to() {          # <sequence> <device>...
+tintcoat_emit_to() {          # <sequence> <device>...
   local s=$1 d any=0
   shift
   for d in "$@"; do
@@ -408,28 +421,28 @@ tinct_emit_to() {          # <sequence> <device>...
 
 # Default target: just this terminal. Per-terminal themes mean painting every
 # terminal in sight is the wrong default -- that is what `--all` is for.
-tinct_emit() {
+tintcoat_emit() {
   local s=$1 t
-  if [ -n "${TINCT_TTY:-}" ]; then
-    tinct_emit_to "$s" "$TINCT_TTY" && return 0
+  if [ -n "${TINTCOAT_TTY:-}" ]; then
+    tintcoat_emit_to "$s" "$TINTCOAT_TTY" && return 0
     printf '%b' "$s"
     return 0
   fi
   t=$(tty 2>/dev/null)
   case $t in
-    /dev/*) tinct_emit_to "$s" "$t" && return 0 ;;
+    /dev/*) tintcoat_emit_to "$s" "$t" && return 0 ;;
   esac
   printf '%s' "$s"
   return 0
 }
 
-tinct_apply_live() { tinct_seq_into; tinct_emit "$SEQ"; }
-tinct_reset_live() { tinct_emit "$(tinct_reset_seq)"; }
+tintcoat_apply_live() { tintcoat_seq_into; tintcoat_emit "$SEQ"; }
+tintcoat_reset_live() { tintcoat_emit "$(tintcoat_reset_seq)"; }
 
 # Paint a named list of devices with the loaded theme.
-tinct_apply_to() {         # <device>...
-  tinct_seq_into
-  tinct_emit_to "$SEQ" "$@"
+tintcoat_apply_to() {         # <device>...
+  tintcoat_seq_into
+  tintcoat_emit_to "$SEQ" "$@"
 }
 
 # --- per-terminal themes -----------------------------------------------------
@@ -440,17 +453,17 @@ tinct_apply_to() {         # <device>...
 #   sessions/ttys009   -> "nord"
 #   default            -> "gruvbox-dark"
 
-tinct_default() {
+tintcoat_default() {
   local n
-  for f in "$TINCT_HOME/default" "$TINCT_ACTIVE_FILE"; do
+  for f in "$TINTCOAT_HOME/default" "$TINTCOAT_ACTIVE_FILE"; do
     [ -r "$f" ] || continue
     IFS= read -r n < "$f" || n=""
-    tinct_trim_into "$n"; n=$TRIMMED
-    if [ -n "$n" ] && tinct_theme_file "$n" >/dev/null 2>&1; then
+    tintcoat_trim_into "$n"; n=$TRIMMED
+    if [ -n "$n" ] && tintcoat_theme_file "$n" >/dev/null 2>&1; then
       printf '%s' "$n"; return 0
     fi
   done
-  n=$(tinct_list | head -1)
+  n=$(tintcoat_list | head -1)
   [ -n "$n" ] || return 1
   printf '%s' "$n"
 }
@@ -459,7 +472,7 @@ tinct_default() {
 # an empty file and falls back to something else. Write beside the target and
 # rename over it instead: rename is atomic, so a reader sees either the old
 # value or the new one and never nothing.
-tinct_write_atomic() {     # <path> <line>
+tintcoat_write_atomic() {     # <path> <line>
   local dest=$1 tmp
   mkdir -p "${dest%/*}" 2>/dev/null || return 1
   tmp=$dest.$$
@@ -468,58 +481,58 @@ tinct_write_atomic() {     # <path> <line>
   return 0
 }
 
-tinct_set_default() {
-  tinct_theme_file "$1" >/dev/null 2>&1 || return 1
-  tinct_write_atomic "$TINCT_HOME/default" "$1" || return 1
+tintcoat_set_default() {
+  tintcoat_theme_file "$1" >/dev/null 2>&1 || return 1
+  tintcoat_write_atomic "$TINTCOAT_HOME/default" "$1" || return 1
   # Keep the older file in step so a half-upgraded setup cannot disagree
   # with itself about which theme is the default.
-  [ -e "$TINCT_ACTIVE_FILE" ] && tinct_write_atomic "$TINCT_ACTIVE_FILE" "$1"
+  [ -e "$TINTCOAT_ACTIVE_FILE" ] && tintcoat_write_atomic "$TINTCOAT_ACTIVE_FILE" "$1"
   return 0
 }
 
 # Linux calls its terminals pts/0, and a slash in a name would make the session
 # record a nested directory rather than a file. Flatten it into a single
 # filename component; macOS ttys009 is unaffected.
-tinct_tty_key_into() { TTYKEY=${1//\//-}; }
+tintcoat_tty_key_into() { TTYKEY=${1//\//-}; }
 
-tinct_session_get() {      # <ttyname> -> theme, or nothing
-  tinct_tty_key_into "$1"
-  local f=$TINCT_SESSION_DIR/$TTYKEY n
+tintcoat_session_get() {      # <ttyname> -> theme, or nothing
+  tintcoat_tty_key_into "$1"
+  local f=$TINTCOAT_SESSION_DIR/$TTYKEY n
   [ -r "$f" ] || return 1
   IFS= read -r n < "$f" || return 1
-  tinct_trim_into "$n"; n=$TRIMMED
-  [ -n "$n" ] && tinct_theme_file "$n" >/dev/null 2>&1 || return 1
+  tintcoat_trim_into "$n"; n=$TRIMMED
+  [ -n "$n" ] && tintcoat_theme_file "$n" >/dev/null 2>&1 || return 1
   printf '%s' "$n"
 }
 
-tinct_session_set() {      # <ttyname> <theme>
-  tinct_theme_file "$2" >/dev/null 2>&1 || return 1
-  tinct_tty_key_into "$1"
-  tinct_write_atomic "$TINCT_SESSION_DIR/$TTYKEY" "$2"
+tintcoat_session_set() {      # <ttyname> <theme>
+  tintcoat_theme_file "$2" >/dev/null 2>&1 || return 1
+  tintcoat_tty_key_into "$1"
+  tintcoat_write_atomic "$TINTCOAT_SESSION_DIR/$TTYKEY" "$2"
 }
 
-tinct_session_clear() {
-  tinct_tty_key_into "$1"
-  rm -f "$TINCT_SESSION_DIR/$TTYKEY" 2>/dev/null
+tintcoat_session_clear() {
+  tintcoat_tty_key_into "$1"
+  rm -f "$TINTCOAT_SESSION_DIR/$TTYKEY" 2>/dev/null
   return 0
 }
 
 # tty names get recycled when a window closes and another opens, so records
 # for terminals that no longer exist are dropped on every run.
-tinct_session_gc() {
+tintcoat_session_gc() {
   local f name d live keys=""
-  [ -d "$TINCT_SESSION_DIR" ] || return 0
+  [ -d "$TINTCOAT_SESSION_DIR" ] || return 0
   # Build the set of live terminals using the same flattened keys the records
   # are stored under, or Linux names would never match and nothing would be
   # collected.
   while IFS= read -r d; do
     [ -n "$d" ] || continue
-    tinct_tty_key_into "${d#/dev/}"
+    tintcoat_tty_key_into "${d#/dev/}"
     keys="$keys:$TTYKEY"
   done <<EOF
-$(tinct_ttys)
+$(tintcoat_ttys)
 EOF
-  for f in "$TINCT_SESSION_DIR"/*; do
+  for f in "$TINTCOAT_SESSION_DIR"/*; do
     [ -f "$f" ] || continue
     name=${f##*/}
     case ":$keys:" in
@@ -532,13 +545,13 @@ EOF
 # What should this terminal be showing, and why? Sets RESOLVED and RESOLVED_BY
 # rather than printing, so the reason survives -- a $(...) caller would run
 # this in a subshell and throw the second half of the answer away.
-tinct_resolve() {          # <ttyname>
+tintcoat_resolve() {          # <ttyname>
   local t=$1 n
-  if [ -n "$t" ] && n=$(tinct_session_get "$t"); then
+  if [ -n "$t" ] && n=$(tintcoat_session_get "$t"); then
     RESOLVED=$n; RESOLVED_BY="pinned to this terminal"
     return 0
   fi
-  RESOLVED=$(tinct_default) || return 1
+  RESOLVED=$(tintcoat_default) || return 1
   RESOLVED_BY="default for new terminals"
   return 0
 }
@@ -552,19 +565,19 @@ tinct_resolve() {          # <ttyname>
 #
 # First match wins, so put the specific ones first. Directory rules match a
 # path prefix; host rules are glob patterns against the ssh destination.
-tinct_rule_match() {       # <kind> <value> -> theme, or nothing
+tintcoat_rule_match() {       # <kind> <value> -> theme, or nothing
   local kind=$1 val=$2 line rkind rpat rtheme rest
-  [ -r "$TINCT_RULES_FILE" ] || return 1
+  [ -r "$TINTCOAT_RULES_FILE" ] || return 1
 
   while IFS= read -r line || [ -n "$line" ]; do
-    tinct_trim_into "$line"; line=$TRIMMED
+    tintcoat_trim_into "$line"; line=$TRIMMED
     case $line in ''|'#'*) continue ;; esac
     case $line in *=*) ;; *) continue ;; esac
 
-    rtheme=${line#*=}; tinct_trim_into "$rtheme"; rtheme=$TRIMMED
-    rest=${line%%=*};  tinct_trim_into "$rest";   rest=$TRIMMED
+    rtheme=${line#*=}; tintcoat_trim_into "$rtheme"; rtheme=$TRIMMED
+    rest=${line%%=*};  tintcoat_trim_into "$rest";   rest=$TRIMMED
     rkind=${rest%%[ 	]*}
-    rpat=${rest#"$rkind"}; tinct_trim_into "$rpat"; rpat=$TRIMMED
+    rpat=${rest#"$rkind"}; tintcoat_trim_into "$rpat"; rpat=$TRIMMED
     [ -n "$rpat" ] || continue
     [ "$rkind" = "$kind" ] || continue
 
@@ -577,8 +590,8 @@ tinct_rule_match() {       # <kind> <value> -> theme, or nothing
           "$rpat"|"$rpat"/*) printf '%s' "$rtheme"; return 0 ;;
         esac ;;
       host)
-        tinct_glob_match "$val" "$rpat" && { printf '%s' "$rtheme"; return 0; } ;;
+        tintcoat_glob_match "$val" "$rpat" && { printf '%s' "$rtheme"; return 0; } ;;
     esac
-  done < "$TINCT_RULES_FILE"
+  done < "$TINTCOAT_RULES_FILE"
   return 1
 }

@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """Layout assertions for the picker, across terminal sizes and selections.
 
-Renders frames with `tinct __frame` and checks the things that were wrong
+Renders frames with `tintcoat __frame` and checks the things that were wrong
 before there was a viewport: the cursor has to be on screen, the frame has to
 fit the window, and no row may overflow the width.
 """
 import os, re, subprocess, sys, unicodedata
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TINCT = os.path.join(ROOT, "bin", "tinct")
+TINTCOAT = os.path.join(ROOT, "bin", "tintcoat")
 ANSI = re.compile(r"\033\[[0-9;?]*[A-Za-z]|\033\][^\a]*\a")
 
 def _bash():
-    """bash 4+ to test against. run.sh exports TINCT_BASH; fall back to PATH so
+    """bash 4+ to test against. run.sh exports TINTCOAT_BASH; fall back to PATH so
     the suites also work when run directly, including on Linux where Homebrew
     paths do not exist."""
     import shutil as _sh
-    return os.environ.get("TINCT_BASH") or _sh.which("bash") or "bash"
+    return os.environ.get("TINTCOAT_BASH") or _sh.which("bash") or "bash"
 
 
 fails = []
@@ -44,20 +44,20 @@ def check(cond, label):
 def clean_env():
     """The environment a test child should see.
 
-    Every TINCT_ variable is dropped rather than a named few, because the suite
+    Every TINTCOAT_ variable is dropped rather than a named few, because the suite
     is often run from a shell that has the integration loaded, and that shell
     exports state of its own.
     """
-    return {k: v for k, v in os.environ.items() if not k.startswith("TINCT_")}
+    return {k: v for k, v in os.environ.items() if not k.startswith("TINTCOAT_")}
 
 
 def frame(shell, idx, rows, cols, filt="", home=None):
     env = clean_env()
-    env["TINCT_SHELL"] = shell
+    env["TINTCOAT_SHELL"] = shell
     if home:
-        env["TINCT_HOME"] = home
+        env["TINTCOAT_HOME"] = home
     r = subprocess.run(
-        [TINCT, "__frame", str(idx), str(rows), str(cols), filt],
+        [TINTCOAT, "__frame", str(idx), str(rows), str(cols), filt],
         capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL,
     )
     if r.returncode != 0:
@@ -69,10 +69,10 @@ def frame(shell, idx, rows, cols, filt="", home=None):
 
 def themes(shell, home):
     env = clean_env()
-    env["TINCT_SHELL"] = shell
+    env["TINTCOAT_SHELL"] = shell
     if home:
-        env["TINCT_HOME"] = home
-    r = subprocess.run([TINCT, "ls"], capture_output=True, text=True, env=env,
+        env["TINTCOAT_HOME"] = home
+    r = subprocess.run([TINTCOAT, "ls"], capture_output=True, text=True, env=env,
                        stdin=subprocess.DEVNULL)
     names = []
     for line in r.stdout.splitlines():
@@ -121,13 +121,13 @@ for shell in ("zsh", _bash()):
                 check(names[idx] in cursor[0],
                       f"{tag}: cursor row is {cursor[0].strip()!r}, wanted {names[idx]!r}")
 
-            check(any("tinct" in l for l in plain), f"{tag}: header missing")
+            check(any("tintcoat" in l for l in plain), f"{tag}: header missing")
             check(lines[-1].strip() != "" or rows < 10, f"{tag}: last row is blank")
 
 # The last row must not end with a newline, or a full-height frame scrolls the
 # alt screen and drags the header off the top.
-env = clean_env(); env["TINCT_SHELL"] = "zsh"
-raw = subprocess.run([TINCT, "__frame", "10", "28", "116"], capture_output=True,
+env = clean_env(); env["TINTCOAT_SHELL"] = "zsh"
+raw = subprocess.run([TINTCOAT, "__frame", "10", "28", "116"], capture_output=True,
                      text=True, env=env, stdin=subprocess.DEVNULL).stdout
 check(not raw.endswith("\n"), "frame must not end with a newline")
 
