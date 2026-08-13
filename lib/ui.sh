@@ -183,6 +183,18 @@ tinct_swatch_row() {       # <first> <last> -> ROW
   ROW=$s
 }
 
+# Pad or truncate plain text to exactly <width> columns, without forking.
+# printf '%-*s' would need $(...) to capture, and the picker does this once
+# per visible row per keystroke.
+TINCT_SPACES='                                                                                                                                                                                                        '
+
+tinct_pad() {              # <text> <width> -> PAD
+  local s=$1 w=$2
+  if [ "$w" -le 0 ]; then PAD=''; return 0; fi
+  if [ ${#s} -ge "$w" ]; then PAD=${s:0:$w}; return 0; fi
+  PAD="$s${TINCT_SPACES:0:$(( w - ${#s} ))}"
+}
+
 # Truncate plain text to a column count, with an ellipsis when it bites.
 # Only ever applied to text before escapes are wrapped around it -- measuring
 # a string that already contains escapes means counting past them, and cutting
@@ -224,11 +236,11 @@ tinct_preview_lines() {    # <want_sample 0|1> <width>
   fi
 
   if [ -n "$TH_FG" ] && [ -n "$TH_BG" ] && [ "$w" -ge 15 ]; then
-    c=$(tinct_contrast "$TH_FG" "$TH_BG")
-    if [ "$w" -ge 27 ] && [ "$(awk -v c="$c" 'BEGIN{print (c < 4.5) ? "low" : "ok"}')" = low ]; then
-      PREVIEW[$i]="\033[2mcontrast\033[0m ${c}:1 \033[38;5;1m· under AA\033[0m"
+    tinct_contrast_into "$TH_FG" "$TH_BG"
+    if [ "$w" -ge 27 ] && [ "$CONTRAST_LOW" = low ]; then
+      PREVIEW[$i]="\033[2mcontrast\033[0m ${CONTRAST}:1 \033[38;5;1m· under AA\033[0m"
     else
-      PREVIEW[$i]="\033[2mcontrast\033[0m ${c}:1"
+      PREVIEW[$i]="\033[2mcontrast\033[0m ${CONTRAST}:1"
     fi
     i=$((i+1))
   fi
@@ -313,7 +325,7 @@ tinct_draw_picker() {
     tinct_fit "${FILTER} · ${n} of ${#THEMES[@]}" "$statusw"
     out "  \033[1mtinct\033[0m  \033[2m/\033[0m\033[2m${FIT}\033[0m"
   else
-    tinct_fit "${n} themes · saved: ${ACTIVE_NAME}" "$statusw"
+    tinct_fit "${n} themes · ${TINCT_HEADER_NOTE}" "$statusw"
     out "  \033[1mtinct\033[0m  \033[2m${FIT}\033[0m"
   fi
   out ""
@@ -332,11 +344,11 @@ tinct_draw_picker() {
         if [ "$row" -eq "$IDX" ]; then mark='▸'; sty='\033[7m'; rst='\033[0m'
         else                           mark=' '; sty='';        rst=''; fi
         if [ "$name" = "$ACTIVE_NAME" ]; then dot='\033[38;5;2m●\033[0m'; else dot=' '; fi
-        plain=$(printf '%-*.*s' "$namew" "$namew" "$name")
+        tinct_pad "$name" "$namew"
         tinct_scroll_glyph "$n" "$listh" "$TOP" "$i"
-        left="  ${dot} ${sty}${mark} ${plain} ${rst}\033[2m${GLYPH}\033[0m"
+        left="  ${dot} ${sty}${mark} ${PAD} ${rst}\033[2m${GLYPH}\033[0m"
       else
-        left=$(printf '%*s' "$leftw" '')
+        tinct_pad '' "$leftw"; left=$PAD
       fi
 
       if [ "$twopane" = 1 ]; then
@@ -365,8 +377,9 @@ tinct_draw_picker() {
     hint=' type to narrow · ⏎ accept · esc clear'
     [ "$TERM_COLS" -lt 42 ] && hint=' ⏎ ok · esc clear'
   else
-    hint=' ↑↓ move · ⏎ set · / find · e edit · q cancel'
-    [ "$TERM_COLS" -lt 48 ] && hint=' ↑↓ · ⏎ set · / find · q'
+    hint=' ↑↓ move · ⏎ set here · d default · A all · / find · e edit · q'
+    [ "$TERM_COLS" -lt 66 ] && hint=' ↑↓ · ⏎ here · d default · A all · / find · q'
+    [ "$TERM_COLS" -lt 46 ] && hint=' ↑↓ · ⏎ set · / find · q'
     [ "$TERM_COLS" -lt 26 ] && hint=' ⏎ set · q'
   fi
   tinct_fit "$hint" $(( TERM_COLS - 2 ))
@@ -390,7 +403,11 @@ $(tinct_list)
 EOF
   [ ${#THEMES[@]} -gt 0 ] || { printf 'tinct: no themes found\n' >&2; return 1; }
 
-  ACTIVE_NAME=$(tinct_active)
+  local here
+  here=$(tinct_this_tty 2>/dev/null) || here=''
+  tinct_resolve "$here"
+  ACTIVE_NAME=$RESOLVED
+  TINCT_HEADER_NOTE="here: ${RESOLVED}"
   local orig=$ACTIVE_NAME
   FILTER=""; MODE=normal; TOP=0; IDX=0
   tinct_filter_apply
@@ -401,6 +418,7 @@ EOF
   done
 
   local chosen='' edit_next='' prev_idx=-1
+  SCOPE=here
 
   tinct_raw_on
   trap 'tinct_raw_off' EXIT INT TERM
@@ -445,7 +463,9 @@ EOF
       home|g)  IDX=0 ;;
       end|G)   IDX=$(( ${#SHOWN[@]} - 1 )) ;;
       /)       MODE=filter ;;
-      enter)   [ ${#SHOWN[@]} -gt 0 ] && { chosen=${SHOWN[$IDX]}; break; } ;;
+      enter)   [ ${#SHOWN[@]} -gt 0 ] && { chosen=${SHOWN[$IDX]}; SCOPE=here;    break; } ;;
+      d)       [ ${#SHOWN[@]} -gt 0 ] && { chosen=${SHOWN[$IDX]}; SCOPE=default; break; } ;;
+      A)       [ ${#SHOWN[@]} -gt 0 ] && { chosen=${SHOWN[$IDX]}; SCOPE=all;     break; } ;;
       e)       [ ${#SHOWN[@]} -gt 0 ] && { edit_next=${SHOWN[$IDX]}; break; } ;;
       q|quit|esc) break ;;
     esac
@@ -457,12 +477,43 @@ EOF
     tinct_edit "$edit_next"
     return $?
   fi
-  if [ -n "$chosen" ]; then
-    tinct_set_active "$chosen"
-    tinct_load "$chosen" && tinct_apply_live
-    printf 'theme set to %s\n' "$chosen"
-  else
+
+  if [ -z "$chosen" ]; then
     tinct_load "$orig" && tinct_apply_live
     printf 'cancelled, still on %s\n' "$orig"
+    return 0
   fi
+
+  local here devs d count=0
+  here=$(tinct_this_tty 2>/dev/null) || here=''
+  tinct_load "$chosen"
+
+  case $SCOPE in
+    all)
+      tinct_seq_into
+      devs=$(tinct_ttys)
+      while IFS= read -r d; do
+        [ -n "$d" ] || continue
+        tinct_emit_to "$SEQ" "$d" || continue
+        tinct_session_set "${d#/dev/}" "$chosen"
+        count=$((count+1))
+      done <<EOF
+$devs
+EOF
+      printf '%s applied to %d terminals\n' "$chosen" "$count" ;;
+    default)
+      tinct_apply_live
+      tinct_set_default "$chosen"
+      [ -n "$here" ] && tinct_session_set "$here" "$chosen"
+      printf '%s set here, and as the default for new terminals\n' "$chosen" ;;
+    *)
+      tinct_apply_live
+      if [ -n "$here" ]; then
+        tinct_session_set "$here" "$chosen"
+        printf '%s set for this terminal\n' "$chosen"
+      else
+        tinct_set_default "$chosen"
+        printf '%s set as the default\n' "$chosen"
+      fi ;;
+  esac
 }

@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Tests for the shell integration: tinct_wrap / tinct_run.
+"""Tests for the shell integration.
 
-Runs each case in a pty so the wrapper sees a real terminal on stdout, with
-TINCT_TTY pointed at a file so the escapes it emits can be read back.
+Everything here runs in a pty, because the integration only does anything when
+stdout is a terminal. The escapes it writes go straight to that pty, so the
+captured output is what the terminal would actually have received.
 """
 import os, pty, select, struct, sys, tempfile, termios, fcntl, time, shutil
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INIT = os.path.join(ROOT, "shell", "init.sh")
+
+NORD_BG = "\033]11;#2E3440\a"
+SOLAR_LIGHT_BG = "\033]11;#FDF6E3\a"
+GRUV_BG = "\033]11;#282828\a"
+EMBER_BG = "\033]11;#151210\a"
 
 fails = []
 checks = 0
@@ -20,11 +26,11 @@ def check(cond, label):
         fails.append(label)
 
 
-def run_script(shell_argv, script, home, cap, interrupt_after=None, wait=3.0):
+def run_script(shell_argv, script, home, interrupt_after=None, wait=3.0):
     env = dict(os.environ)
-    env.update({"TINCT_HOME": home, "TINCT_TTY": cap, "TERM": "xterm-256color"})
-    env.pop("TINCT_ROWS", None)
-    env.pop("TINCT_COLS", None)
+    env.update({"TINCT_HOME": home, "TERM": "xterm-256color"})
+    for k in ("TINCT_TTY", "TINCT_ROWS", "TINCT_COLS", "TINCT_DISABLE"):
+        env.pop(k, None)
 
     pid, fd = pty.fork()
     if pid == 0:
@@ -60,10 +66,15 @@ def run_script(shell_argv, script, home, cap, interrupt_after=None, wait=3.0):
     return out.decode("utf-8", "replace")
 
 
-def sandbox(active="nord"):
+def sandbox(default="gruvbox-dark", rules=None, sessions=None):
     home = tempfile.mkdtemp(prefix="tinct-wrap-")
     os.makedirs(os.path.join(home, "themes"), exist_ok=True)
-    open(os.path.join(home, "active"), "w").write(active + "\n")
+    os.makedirs(os.path.join(home, "sessions"), exist_ok=True)
+    open(os.path.join(home, "default"), "w").write(default + "\n")
+    if rules:
+        open(os.path.join(home, "rules"), "w").write(rules)
+    for tty, theme in (sessions or {}).items():
+        open(os.path.join(home, "sessions", tty), "w").write(theme + "\n")
     return home
 
 
@@ -71,50 +82,133 @@ SHELLS = [["zsh", "-f"], [os.environ.get("TINCT_BASH", "/opt/homebrew/bin/bash")
 
 for argv in SHELLS:
     tag = "zsh" if argv[0] == "zsh" else "bash"
+
+    # --- painting without launching anything --------------------------------
     home = sandbox()
-    cap = os.path.join(home, "cap")
+    out = run_script(argv, f". {INIT}; tinct_paint nord", home)
+    check(NORD_BG in out, f"{tag}: tinct_paint writes the theme to the terminal")
+    check("\033]104\a" in out, f"{tag}: tinct_paint clears the old palette first")
+    shutil.rmtree(home)
 
-    # --- a wrapped command themes on entry and resets on exit ---------------
-    run_script(argv, f". {INIT}; tinct_wrap sleep; sleep 0.2", home, cap)
-    painted = open(cap).read() if os.path.exists(cap) else ""
-    check("\033]11;#2E3440" in painted, f"{tag}: wrapped command applies the active theme")
-    check("\033]111" in painted, f"{tag}: wrapped command resets the terminal on exit")
-    check(painted.index("\033]11;#2E3440") < painted.index("\033]111"),
-          f"{tag}: theme is applied before it is reset")
-    open(cap, "w").close()
+    # --- a new shell picks up the default -----------------------------------
+    home = sandbox(default="gruvbox-dark")
+    out = run_script(argv, f". {INIT}; tinct_sync", home)
+    check(GRUV_BG in out, f"{tag}: a new terminal gets the default theme")
+    shutil.rmtree(home)
 
-    # --- a specific theme per command ---------------------------------------
-    run_script(argv, f". {INIT}; tinct_wrap sleep solarized-light; sleep 0.2", home, cap)
-    painted = open(cap).read() if os.path.exists(cap) else ""
-    check("\033]11;#FDF6E3" in painted, f"{tag}: a named theme overrides the active one")
-    open(cap, "w").close()
+    # --- a pinned terminal beats the default --------------------------------
+    home = sandbox(default="gruvbox-dark")
+    out = run_script(
+        argv,
+        f'. {INIT}; mkdir -p "$TINCT_HOME/sessions"; '
+        f'printf nord > "$TINCT_HOME/sessions/$TINCT_TTY_NAME"; '
+        f"TINCT_SHOWING=''; tinct_sync",
+        home,
+    )
+    check(NORD_BG in out, f"{tag}: a pinned terminal keeps its own theme")
+    check(GRUV_BG not in out, f"{tag}: a pinned terminal ignores the default")
+    shutil.rmtree(home)
 
-    # --- interrupting must still hand the terminal back ---------------------
-    run_script(argv, f". {INIT}; tinct_wrap sleep; sleep 5", home, cap,
-               interrupt_after=0.8, wait=3.0)
-    painted = open(cap).read() if os.path.exists(cap) else ""
-    check("\033]111" in painted, f"{tag}: interrupting a wrapped command still resets")
-    open(cap, "w").close()
+    # --- directory rules ------------------------------------------------------
+    home = sandbox(default="gruvbox-dark", rules="dir /tmp = solarized-light\n")
+    out = run_script(argv, f'. {INIT}; cd /tmp; tinct_sync', home)
+    check(SOLAR_LIGHT_BG in out, f"{tag}: a directory rule themes that directory")
+
+    out = run_script(argv, f'. {INIT}; cd /; tinct_sync', home)
+    check(GRUV_BG in out, f"{tag}: a directory with no rule falls back to the default")
+
+    # a pin outranks a directory rule
+    out = run_script(
+        argv,
+        f'. {INIT}; printf nord > "$TINCT_HOME/sessions/$TINCT_TTY_NAME"; '
+        f'cd /tmp; TINCT_SHOWING=""; tinct_sync',
+        home,
+    )
+    check(NORD_BG in out, f"{tag}: a pin outranks a directory rule")
+    check(SOLAR_LIGHT_BG not in out, f"{tag}: the directory rule is skipped when pinned")
+    shutil.rmtree(home)
+
+    # --- repainting only when the answer changes ----------------------------
+    home = sandbox(default="gruvbox-dark", rules="dir /tmp = solarized-light\n")
+    out = run_script(argv, f'. {INIT}; cd /tmp; tinct_sync; tinct_sync; tinct_sync', home)
+    check(out.count(SOLAR_LIGHT_BG) == 1,
+          f"{tag}: syncing repeatedly repaints once, not every time "
+          f"(saw {out.count(SOLAR_LIGHT_BG)})")
+    shutil.rmtree(home)
+
+    # --- the cd hook fires without an explicit sync --------------------------
+    home = sandbox(default="gruvbox-dark", rules="dir /tmp = solarized-light\n")
+    # zsh runs chpwd hooks; bash re-evaluates PROMPT_COMMAND. Under -c there is
+    # no prompt, so call it the way the shell would.
+    if tag == "zsh":
+        script = f'. {INIT}; tinct_enable_auto; cd /tmp'
+    else:
+        script = f'. {INIT}; tinct_enable_auto; cd /tmp; eval "$PROMPT_COMMAND"'
+    out = run_script(argv, script, home)
+    check(GRUV_BG in out, f"{tag}: enabling the hook paints the default immediately")
+    check(SOLAR_LIGHT_BG in out, f"{tag}: cd into a rule'd directory repaints via the hook")
+    check(out.index(GRUV_BG) < out.index(SOLAR_LIGHT_BG),
+          f"{tag}: the default lands before the directory rule")
+    shutil.rmtree(home)
+
+    # --- wrapping a command --------------------------------------------------
+    home = sandbox(default="gruvbox-dark")
+    out = run_script(argv, f'. {INIT}; tinct_wrap sleep solarized-light; sleep 0.2', home)
+    check(SOLAR_LIGHT_BG in out, f"{tag}: a wrapped command applies its theme")
+    check(out.rindex(GRUV_BG) > out.index(SOLAR_LIGHT_BG),
+          f"{tag}: a wrapped command restores the terminal afterwards")
+    shutil.rmtree(home)
+
+    # --- interrupting still restores -----------------------------------------
+    home = sandbox(default="gruvbox-dark")
+    out = run_script(argv, f'. {INIT}; tinct_wrap sleep solarized-light; sleep 5', home,
+                     interrupt_after=0.8, wait=3.0)
+    check(SOLAR_LIGHT_BG in out, f"{tag}: interrupt case applied the theme first")
+    check(out.rindex(GRUV_BG) > out.index(SOLAR_LIGHT_BG),
+          f"{tag}: interrupting a wrapped command still restores")
+    shutil.rmtree(home)
 
     # --- piped output is left alone -----------------------------------------
-    run_script(argv, f". {INIT}; tinct_wrap echo; echo hi | cat > /dev/null", home, cap)
-    painted = open(cap).read() if os.path.exists(cap) else ""
-    check(painted == "", f"{tag}: a wrapped command writing to a pipe emits nothing")
-    open(cap, "w").close()
+    home = sandbox()
+    out = run_script(argv, f'. {INIT}; tinct_wrap echo solarized-light; echo hi | cat > /dev/null', home)
+    check(SOLAR_LIGHT_BG not in out, f"{tag}: a wrapped command writing to a pipe emits nothing")
+    shutil.rmtree(home)
 
-    # --- nesting does not re-theme ------------------------------------------
-    run_script(argv, f". {INIT}; tinct_wrap sleep; TINCT_WRAPPED=1 sleep 0.2", home, cap)
-    painted = open(cap).read() if os.path.exists(cap) else ""
-    check(painted == "", f"{tag}: an already-wrapped command is passed straight through")
-    open(cap, "w").close()
+    # --- ssh by host rule ----------------------------------------------------
+    home = sandbox(default="gruvbox-dark", rules="host prod-* = ember\n")
+    # `ssh` is replaced by a stub on PATH so nothing leaves the machine.
+    stub = os.path.join(home, "bin")
+    os.makedirs(stub, exist_ok=True)
+    with open(os.path.join(stub, "ssh"), "w") as f:
+        f.write("#!/bin/sh\necho \"stub ssh $*\"\n")
+    os.chmod(os.path.join(stub, "ssh"), 0o755)
 
-    # --- PATH and refusals ---------------------------------------------------
-    out = run_script(argv, f". {INIT}; command -v tinct", home, cap)
+    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tinct_wrap_ssh; ssh prod-db1', home)
+    check(EMBER_BG in out, f"{tag}: ssh to a matching host applies its theme")
+    check("stub ssh prod-db1" in out, f"{tag}: ssh still runs the real command")
+    check(out.rindex(GRUV_BG) > out.index(EMBER_BG), f"{tag}: ssh restores on exit")
+
+    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tinct_wrap_ssh; ssh someone@prod-db1', home)
+    check(EMBER_BG in out, f"{tag}: ssh strips user@ before matching the host")
+
+    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tinct_wrap_ssh; ssh -p 2222 prod-db1', home)
+    check(EMBER_BG in out, f"{tag}: ssh skips option arguments when finding the host")
+
+    out = run_script(argv, f'PATH="{stub}:$PATH"; . {INIT}; tinct_wrap_ssh; ssh example.com', home)
+    check(EMBER_BG not in out, f"{tag}: ssh to an unmatched host is left alone")
+    check("stub ssh example.com" in out, f"{tag}: unmatched ssh still runs")
+    shutil.rmtree(home)
+
+    # --- PATH, refusals, opt-out ---------------------------------------------
+    home = sandbox()
+    out = run_script(argv, f'. {INIT}; command -v tinct', home)
     check("bin/tinct" in out, f"{tag}: sourcing init puts tinct on PATH")
 
-    out = run_script(argv, f". {INIT}; tinct_wrap 'rm -rf /' 2>&1", home, cap)
+    out = run_script(argv, f". {INIT}; tinct_wrap 'rm -rf /' 2>&1", home)
     check("not a usable command name" in out, f"{tag}: refuses a bogus command name")
 
+    out = run_script(argv, f'. {INIT}; TINCT_DISABLE=1 tinct_sync', home)
+    check(GRUV_BG not in out, f"{tag}: TINCT_DISABLE stops it painting anything")
     shutil.rmtree(home)
 
 print(f"wrap: {checks - len(fails)}/{checks} checks passed")

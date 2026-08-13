@@ -79,16 +79,35 @@ def run(shell, args, keys, home, rows=28, cols=116, extra_env=None):
     return out.decode("utf-8", "replace"), code
 
 
-def sandbox(active="arctic-dim"):
+def sandbox(default="arctic-dim"):
     home = tempfile.mkdtemp(prefix="tinct-test-")
     os.makedirs(os.path.join(home, "themes"), exist_ok=True)
-    with open(os.path.join(home, "active"), "w") as f:
-        f.write(active + "\n")
+    os.makedirs(os.path.join(home, "sessions"), exist_ok=True)
+    with open(os.path.join(home, "default"), "w") as f:
+        f.write(default + "\n")
     return home
 
 
-def active_of(home):
-    p = os.path.join(home, "active")
+def pinned_of(home):
+    """The theme pinned to the pty this run used.
+
+    The tty name is allocated by the kernel, so rather than guess it, read
+    back whichever session file the run created -- there is only ever one.
+    """
+    d = os.path.join(home, "sessions")
+    names = [n for n in os.listdir(d)] if os.path.isdir(d) else []
+    if len(names) != 1:
+        return None
+    return open(os.path.join(d, names[0])).read().strip()
+
+
+def pinned_count(home):
+    d = os.path.join(home, "sessions")
+    return len(os.listdir(d)) if os.path.isdir(d) else 0
+
+
+def default_of(home):
+    p = os.path.join(home, "default")
     return open(p).read().strip() if os.path.exists(p) else None
 
 
@@ -102,7 +121,8 @@ for shell in SHELLS:
     out, code = run(shell, [], ["q"], home)
     check(code == 0, f"{tag}: quitting exits cleanly (got {code})")
     check("cancelled" in out, f"{tag}: quitting says it cancelled")
-    check(active_of(home) == "arctic-dim", f"{tag}: quitting leaves the saved theme alone")
+    check(pinned_of(home) is None, f"{tag}: quitting pins nothing")
+    check(default_of(home) == "arctic-dim", f"{tag}: quitting leaves the default alone")
     check("\033[?1049h" in out, f"{tag}: enters the alternate screen")
     check("\033[?1049l" in out, f"{tag}: leaves the alternate screen")
     check("\033[?25h" in out, f"{tag}: puts the cursor back")
@@ -111,9 +131,10 @@ for shell in SHELLS:
     # --- moving and choosing -------------------------------------------------
     home = sandbox()
     out, code = run(shell, [], ["down", "down", "enter"], home)
-    check(active_of(home) == "copper-patina",
-          f"{tag}: two downs and enter picks the third theme (got {active_of(home)})")
-    check("theme set to copper-patina" in out, f"{tag}: confirms the theme it set")
+    check(pinned_of(home) == "copper-patina",
+          f"{tag}: two downs and enter pins the third theme (got {pinned_of(home)})")
+    check("copper-patina set for this terminal" in out, f"{tag}: confirms what it set")
+    check(default_of(home) == "arctic-dim", f"{tag}: pinning does not touch the default")
     shutil.rmtree(home)
 
     # --- the cursor stays visible while walking a long way down --------------
@@ -126,26 +147,41 @@ for shell in SHELLS:
 
     home = sandbox()
     out, _ = run(shell, [], ["end", "enter"], home)
-    check(active_of(home) == "wine-cellar",
-          f"{tag}: end jumps to the last theme (got {active_of(home)})")
+    check(pinned_of(home) == "wine-cellar",
+          f"{tag}: end jumps to the last theme (got {pinned_of(home)})")
     shutil.rmtree(home)
 
     # --- filtering -----------------------------------------------------------
     home = sandbox()
     out, _ = run(shell, [], ["/", "n", "o", "r", "d", "enter", "enter"], home)
-    check(active_of(home) == "nord", f"{tag}: filter then enter picks nord (got {active_of(home)})")
+    check(pinned_of(home) == "nord", f"{tag}: filter then enter picks nord (got {pinned_of(home)})")
+    shutil.rmtree(home)
+
+    # --- d sets the default too, A paints every terminal --------------------
+    home = sandbox()
+    out, _ = run(shell, [], ["down", "d"], home)
+    check(default_of(home) == "catppuccin-mocha",
+          f"{tag}: 'd' makes it the default for new terminals (got {default_of(home)})")
+    check(pinned_of(home) == "catppuccin-mocha", f"{tag}: 'd' also pins it here")
+    shutil.rmtree(home)
+
+    home = sandbox()
+    out, _ = run(shell, [], ["down", "A"], home)
+    check("applied to" in out, f"{tag}: 'A' reports how many terminals it painted")
+    check(pinned_count(home) >= 1, f"{tag}: 'A' records a theme per terminal")
+    check(default_of(home) == "arctic-dim", f"{tag}: 'A' leaves the default alone")
     shutil.rmtree(home)
 
     home = sandbox()
     out, _ = run(shell, [], ["/", "z", "z", "z", "q"], home)
     check("nothing matches" in ANSI.sub("", out), f"{tag}: a filter matching nothing says so")
-    check(active_of(home) == "arctic-dim", f"{tag}: a dead filter changes nothing")
+    check(pinned_of(home) is None, f"{tag}: a dead filter changes nothing")
     shutil.rmtree(home)
 
     home = sandbox()
     out, _ = run(shell, [], ["/", "n", "o", "r", "d", "^U", "enter", "enter"], home)
-    check(active_of(home) == "arctic-dim",
-          f"{tag}: ctrl-u wipes the filter back to the whole list (got {active_of(home)})")
+    check(pinned_of(home) == "arctic-dim",
+          f"{tag}: ctrl-u wipes the filter back to the whole list (got {pinned_of(home)})")
     shutil.rmtree(home)
 
     # --- the theme actually reaches the terminal ----------------------------
@@ -188,7 +224,8 @@ for shell in SHELLS:
     if os.path.exists(saved):
         body = open(saved).read()
         check("FG=" in body and "BG=" in body, f"{tag}: saved theme keeps its colors")
-        check(active_of(home) == "nord", f"{tag}: saving makes it the default")
+        check(pinned_of(home) == "nord", f"{tag}: saving pins it to this terminal")
+        check(default_of(home) == "arctic-dim", f"{tag}: saving leaves the default alone")
     shutil.rmtree(home)
 
     # --- editing a bundled theme must not touch the repo --------------------

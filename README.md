@@ -2,14 +2,15 @@
 
 Terminal color themes that apply to the session you are already in.
 
-No profile to edit, no new window, nothing to restart. Pick a theme and the
-terminal in front of you changes color, including the program running in it.
+No profile to edit, no new window, nothing to restart. And every terminal keeps
+its own theme, so the window you use for production does not have to look like
+the one you use for scratch work.
 
 ```
-tinct                  pick a theme, previewing as you move
-tinct set nord         apply it and remember it
-tinct edit nord        adjust the colors by hand
-tinct reset            hand the terminal back its own colors
+tinct                     pick a theme, previewing as you move
+tinct set nord            just this terminal
+tinct set nord --all      every terminal you have open
+tinct sessions            what each terminal is showing
 ```
 
 ## Why this exists
@@ -19,10 +20,11 @@ theme switcher I tried wanted me to edit a profile and open a new window, which
 meant killing the thing I was in the middle of just to change the background.
 That is a silly trade to have to make.
 
-So this changes the window in place. It also grew a `watch` setting, because the
-window I actually wanted to retint was usually a *different tab* from the one I
-was typing in — and a program that is already running cannot be asked to
-re-read a config file.
+Once that worked, the obvious next thing was that my terminals should not all
+look the same. A window sitting on a production host should be visibly, boringly
+different from the one where I am trying things out — not because it is pretty,
+but because it is the cheapest possible guard against running the right command
+in the wrong window.
 
 One thing worth being clear about: this themes the **terminal emulator**, not
 your shell and not any particular program. The colors belong to the window, so
@@ -41,19 +43,56 @@ tinct writes OSC escape sequences straight to the terminal device instead:
 | `OSC 4;N` | palette entry N |
 | `OSC 104`, `110`–`119` | reset the above |
 
-Every mainstream terminal has supported these for years. Because the colors
-are a property of the terminal rather than of any program, a long-running
-process in that window is retinted along with everything else.
+Every mainstream terminal has supported these for years. Because a terminal
+device is just a file you can write to, tinct can also paint a window it is not
+running in — which is what makes `--all` and `--tty` possible at all.
 
-It can also repaint a window it is not being run from. Give it a program name
-to watch and it resolves that process's tty and writes there directly:
+## A theme per terminal
+
+Each terminal remembers its own theme, keyed by its tty. A terminal with no
+preference of its own uses the default, so new windows stay predictable while
+any individual one can be pinned to something else.
 
 ```
-# ~/.config/tinct/config
-watch = psql, vim
+tinct set nord                 pin this terminal
+tinct set nord --default       ...and make it the default for new terminals
+tinct set nord --all           paint every open terminal
+tinct set nord --tty ttys004   paint one specific terminal
+tinct clear                    unpin, go back to the default
+tinct clear --all              unpin everything
 ```
 
-That is what makes it useful with something already running in another tab.
+```
+$ tinct sessions
+  TERMINAL   THEME                RUNNING
+▸ ttys004    nord                 zsh        pinned
+  ttys006    gruvbox-dark         vim        default
+  ttys009    ember                ssh        pinned
+  ttys012    gruvbox-dark         node       default
+```
+
+`tinct which` answers the narrower question of what this terminal is on and why.
+Records for terminals that no longer exist are cleaned up automatically, since
+tty names get recycled when windows close.
+
+## Rules: themes that apply themselves
+
+`~/.config/tinct/rules` maps directories and ssh hosts to themes. First match
+wins, so put the specific ones first.
+
+```
+dir  ~/work/prod   = high-contrast-dark
+dir  ~/work        = one-dark
+host prod-*        = ember
+host *.internal    = midnight-ink
+```
+
+With the shell integration loaded, `cd ~/work/prod` retints the window, and
+`ssh prod-db1` makes the session visibly different for as long as it lasts —
+then puts the window back. Directory rules match a path prefix; host rules are
+globs against the ssh destination, with any `user@` stripped first.
+
+A terminal you have pinned by hand is left alone. Explicit beats automatic.
 
 ## Install
 
@@ -66,29 +105,33 @@ git clone https://github.com/solvyxtech/tinct.git ~/.local/share/tinct
 ```
 
 The installer symlinks `bin/tinct` into `~/.local/bin` and creates
-`~/.config/tinct`. Nothing else is touched. To do it by hand, put `bin/tinct`
-on your `PATH`.
+`~/.config/tinct`. Nothing else is touched.
 
 ## Shell integration
 
-Optional, and the reason the project exists. Source it from `~/.zshrc` or
+Optional, and where the automatic parts live. Source it from `~/.zshrc` or
 `~/.bashrc`:
 
 ```sh
 . ~/.local/share/tinct/shell/init.sh
 
-tinct_wrap psql                   # theme while it runs, restore when it exits
-tinct_wrap ssh solarized-dark     # a specific theme for a specific tool
+tinct_enable_auto              # this terminal's theme, reapplied on cd
+tinct_wrap_ssh                 # ssh themed by host rules
+tinct_wrap psql solarized-dark # theme one command while it runs
 ```
 
-A wrapped command applies a theme on entry and hands the terminal back on
-exit — including when you interrupt it. Piped output and nested calls pass
-through untouched, so scripts are unaffected.
+`tinct_wrap` applies a theme on entry and hands the terminal back on exit,
+including when you interrupt it. Piped output and nested calls pass through
+untouched, so scripts are unaffected. `TINCT_DISABLE=1` turns all of it off.
+
+The hooks do their lookups in pure shell and fork nothing. Launching tinct costs
+about 20ms, which is fine once but not on every prompt, so the program is only
+started when the answer actually changes — `cd` inside one project is free.
 
 ## The picker
 
 ```
-  tinct  36 themes · saved: gruvbox-dark
+  tinct  36 themes · here: gruvbox-dark
 
   ● gruvbox-dark        │   Nord
     high-contrast-dark  │   Arctic north-bluish, official palette
@@ -99,13 +142,22 @@ through untouched, so scripts are unaffected.
     rose-pine           │   bg #2E3440  fg #D8DEE9
     tokyo-night         │   contrast 9.7:1
 
-  ↑↓ move · ⏎ set · / find · e edit · q cancel
+  ↑↓ move · ⏎ set here · d default · A all · / find · e edit · q
 ```
 
-`/` narrows the list as you type, `e` opens the editor on the highlighted
-theme, `q` leaves everything as it was. The layout follows the window: the
-preview moves below the list on narrow terminals and drops detail rather than
-overflowing on small ones.
+| Key | Does |
+| --- | --- |
+| `↑` `↓`, `PgUp` `PgDn`, `Home` `End` | move, previewing live |
+| `/` | narrow the list as you type |
+| `⏎` | set for this terminal |
+| `d` | also make it the default for new terminals |
+| `A` | apply to every open terminal |
+| `e` | open the editor on the highlighted theme |
+| `q` | back out, restoring what you had |
+
+The layout follows the window: the preview moves below the list on narrow
+terminals and drops detail rather than overflowing on small ones. The list is a
+viewport, so the cursor is always on screen no matter how many themes you have.
 
 ## The editor
 
@@ -132,8 +184,8 @@ clean.
 
 ## Theme format
 
-Plain `KEY=value` text. Every color is optional — leave the palette out and
-the terminal keeps the one it was configured with.
+Plain `KEY=value` text. Every color is optional — leave the palette out and the
+terminal keeps the one it was configured with.
 
 ```
 # nord
@@ -154,31 +206,36 @@ ANSI15=#ECEFF4
 
 `tinct new <name>` copies the current theme as a starting point.
 
-## Configuration
+## Files
 
-`~/.config/tinct/config`, same `KEY=value` format:
-
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `watch` | *(none)* | comma-separated program names whose terminals also get repainted |
-| `scrolloff` | `2` | rows of context kept above and below the picker cursor |
+| Path | What |
+| --- | --- |
+| `~/.config/tinct/default` | theme for new terminals |
+| `~/.config/tinct/sessions/` | one file per pinned terminal |
+| `~/.config/tinct/rules` | directory and host rules |
+| `~/.config/tinct/themes/` | your themes; shadow bundled ones by name |
+| `~/.config/tinct/config` | `scrolloff`, and anything else general |
 
 ## Layout
 
 ```
 bin/tinct        launcher: picks zsh or bash 4+, then runs lib/main.sh
-lib/core.sh      theme files, color math, escape sequences, tty targeting
+lib/core.sh      themes, color math, escape sequences, sessions, rules
 lib/ui.sh        picker, viewport, preview
 lib/edit.sh      color editor
-shell/init.sh    PATH plus tinct_wrap
+shell/init.sh    PATH, hooks, wrappers -- fork-free lookups
 themes/          bundled themes
-tests/           see below
 ```
 
 The implementation is one dialect that both shells understand. zsh gets
 `ksh_arrays` so array indexing matches bash, associative subscripts are always
-quoted because zsh reads unquoted ones as globs, and anything needing floating
-point goes to POSIX awk rather than to a shell built-in.
+quoted because zsh reads unquoted ones as globs, glob matching goes through one
+helper because zsh will not expand a pattern held in a variable without being
+asked, and anything needing floating point goes to POSIX awk.
+
+A keystroke in the picker costs about 4ms: it does no work per frame that it can
+cache, builds escape sequences from real control bytes rather than `printf '%b'`,
+and pads columns by string slicing instead of a subshell per row.
 
 ## Tests
 
@@ -186,16 +243,16 @@ point goes to POSIX awk rather than to a shell built-in.
 tests/run.sh
 ```
 
-Runs the unit tests under both shells, then three suites that drive the real
-binary: layout assertions across nine terminal sizes, an interactive suite that
+Around 850 checks. The unit tests run under both shells; the rest drive the real
+binary — layout assertions across nine terminal sizes, an interactive suite that
 drives the picker and editor through a pty, and one that exercises the shell
-integration. Roughly 700 checks.
+integration, hooks and ssh wrapper included.
 
 ```
-tests/unit.sh         pure functions: viewport, color math, parsing
+tests/unit.sh         pure functions: viewport, color math, parsing, rules
 tests/render.py       every frame fits its window and never overflows
 tests/interactive.py  keys do what they claim, via a real pty
-tests/wrap.py         tinct_wrap applies, restores, and stays out of the way
+tests/wrap.py         hooks, wrappers, and per-terminal resolution
 ```
 
 ## License

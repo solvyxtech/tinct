@@ -184,13 +184,20 @@ tinct_load bare
 case $(tinct_seq) in *']4;'*) ok "seq: no palette means no OSC 4" 0 ;;
                      *) ok "seq: no palette means no OSC 4" 1 ;; esac
 
-# --- active theme ------------------------------------------------------------
-tinct_set_active probe
-eq "active: round trips" "probe" "$(tinct_active)"
-tinct_set_active does-not-exist 2>/dev/null && ok "active: refuses unknown" 0 || ok "active: refuses unknown" 1
-eq "active: unchanged after refusal" "probe" "$(tinct_active)"
-printf 'ghost\n' > "$TINCT_ACTIVE_FILE"
-eq "active: falls back when the file names a ghost" "bare" "$(tinct_active)"
+# --- default theme -----------------------------------------------------------
+tinct_set_default probe
+eq "default: round trips" "probe" "$(tinct_default)"
+tinct_set_default does-not-exist 2>/dev/null && ok "default: refuses unknown" 0 || ok "default: refuses unknown" 1
+eq "default: unchanged after refusal" "probe" "$(tinct_default)"
+printf 'ghost\n' > "$TINCT_HOME/default"
+eq "default: falls back when the file names a ghost" "bare" "$(tinct_default)"
+tinct_set_default probe
+
+# an older install that only has the `active` file still works
+rm -f "$TINCT_HOME/default"
+printf 'bare\n' > "$TINCT_ACTIVE_FILE"
+eq "default: reads a legacy active file" "bare" "$(tinct_default)"
+tinct_set_default probe
 
 # A user theme of the same name must shadow the bundled one.
 printf 'LABEL=Bundled\nBG=#AAAAAA\n' > "$TINCT_BUNDLED_DIR/probe.theme"
@@ -225,6 +232,85 @@ EOF
 tinct_read_config
 eq "config: watch"     "psql, vim" "$TINCT_WATCH"
 eq "config: scrolloff" "4"           "$TINCT_SCROLLOFF"
+
+
+
+# --- per-terminal sessions ---------------------------------------------------
+TINCT_SESSION_DIR=$TINCT_HOME/sessions
+mkdir -p "$TINCT_SESSION_DIR"
+tinct_set_default probe
+
+tinct_session_get ttys999 >/dev/null 2>&1 && ok "session: unknown terminal has none" 0 || ok "session: unknown terminal has none" 1
+tinct_session_set ttys999 bare
+eq "session: round trips"          "bare"  "$(tinct_session_get ttys999)"
+tinct_session_set ttys999 nope 2>/dev/null && ok "session: refuses unknown theme" 0 || ok "session: refuses unknown theme" 1
+eq "session: unchanged after refusal" "bare" "$(tinct_session_get ttys999)"
+
+tinct_resolve ttys999
+eq "resolve: a pinned terminal"    "bare"  "$RESOLVED"
+eq "resolve: says it was pinned"   "pinned to this terminal" "$RESOLVED_BY"
+tinct_resolve ttys998
+eq "resolve: an unpinned terminal" "probe" "$RESOLVED"
+case $RESOLVED_BY in default*) ok "resolve: says it was the default" 1 ;; *) ok "resolve: says it was the default" 0 ;; esac
+
+tinct_session_clear ttys999
+tinct_resolve ttys999
+eq "resolve: after clearing"       "probe" "$RESOLVED"
+
+# a record naming a theme that no longer exists must not win
+printf 'deleted-theme\n' > "$TINCT_SESSION_DIR/ttys997"
+tinct_resolve ttys997
+eq "resolve: ignores a stale theme name" "probe" "$RESOLVED"
+
+# garbage collection drops terminals that are gone
+tinct_session_set ttys996 bare
+TINCT_TTYS_CACHED=1 TINCT_TTYS_CACHE="/dev/ttys995
+"
+tinct_session_gc
+[ -e "$TINCT_SESSION_DIR/ttys996" ] && ok "session: gc removes dead terminals" 0 || ok "session: gc removes dead terminals" 1
+TINCT_TTYS_CACHED=0 TINCT_TTYS_CACHE=""
+
+# --- rules -------------------------------------------------------------------
+cat > "$TINCT_RULES_FILE" <<'EOF'
+# comment
+dir  ~/work/prod   = bare
+dir  ~/work        = probe
+host prod-*        = bare
+host *.internal    = probe
+host exact-host    = bare
+EOF
+
+eq "rule: deeper dir wins by order"  "bare"  "$(tinct_rule_match dir "$HOME/work/prod/x")"
+eq "rule: parent dir still matches"  "probe" "$(tinct_rule_match dir "$HOME/work/other")"
+eq "rule: exact dir matches"         "probe" "$(tinct_rule_match dir "$HOME/work")"
+tinct_rule_match dir /nowhere >/dev/null 2>&1 && ok "rule: unrelated dir does not match" 0 || ok "rule: unrelated dir does not match" 1
+eq "rule: prefix glob host"          "bare"  "$(tinct_rule_match host prod-db1)"
+eq "rule: suffix glob host"          "probe" "$(tinct_rule_match host box.internal)"
+eq "rule: exact host"                "bare"  "$(tinct_rule_match host exact-host)"
+tinct_rule_match host example.com >/dev/null 2>&1 && ok "rule: unrelated host does not match" 0 || ok "rule: unrelated host does not match" 1
+# a dir pattern must not be consulted for a host lookup
+tinct_rule_match host "$HOME/work" >/dev/null 2>&1 && ok "rule: kinds do not cross over" 0 || ok "rule: kinds do not cross over" 1
+
+# --- glob matching is identical in both shells -------------------------------
+tinct_glob_match prod-db1 'prod-*'    && ok "glob: prefix"        1 || ok "glob: prefix"        0
+tinct_glob_match a.internal '*.internal' && ok "glob: suffix"     1 || ok "glob: suffix"        0
+tinct_glob_match exact exact          && ok "glob: literal"       1 || ok "glob: literal"       0
+tinct_glob_match nope 'prod-*'        && ok "glob: rejects"       0 || ok "glob: rejects"       1
+
+# --- contrast memoization returns the same answer twice ----------------------
+tinct_contrast_into '#000000' '#FFFFFF'
+eq "contrast: ratio"        "21.0" "$CONTRAST"
+eq "contrast: verdict"      "ok"   "$CONTRAST_LOW"
+tinct_contrast_into '#000000' '#FFFFFF'
+eq "contrast: memo agrees"  "21.0" "$CONTRAST"
+tinct_contrast_into '#777777' '#808080'
+eq "contrast: flags low"    "low"  "$CONTRAST_LOW"
+
+# --- padding is exact --------------------------------------------------------
+tinct_pad "abc" 6;  eq "pad: pads"      "abc   " "$PAD"
+tinct_pad "abcdef" 3; eq "pad: truncates" "abc"  "$PAD"
+tinct_pad "" 4;     eq "pad: empty"     "    "   "$PAD"
+tinct_pad "abc" 0;  eq "pad: zero"      ""       "$PAD"
 
 rm -rf "$TINCT_HOME"
 printf '%s: %d passed, %d failed\n' "$SH" "$PASS" "$FAIL"

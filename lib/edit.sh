@@ -153,9 +153,10 @@ tinct_draw_edit() {
 
   out ""
   if [ -n "${V["FG"]}" ] && [ -n "${V["BG"]}" ]; then
-    contrast=$(tinct_contrast "${V["FG"]}" "${V["BG"]}")
-    warn=$(awk -v c="$contrast" 'BEGIN{print (c < 4.5) ? " \033[38;5;1m· under AA (4.5)\033[0m" : ""}')
-    out "  \033[2mfg/bg contrast\033[0m ${contrast}:1${warn}"
+    tinct_contrast_into "${V["FG"]}" "${V["BG"]}"
+    warn=''
+    [ "$CONTRAST_LOW" = low ] && warn=" \033[38;5;1m· under AA (4.5)\033[0m"
+    out "  \033[2mfg/bg contrast\033[0m ${CONTRAST}:1${warn}"
   fi
 
   # What is left after the grid decides how much preview fits. The footer and
@@ -191,8 +192,13 @@ tinct_edit() {
     return 1
   fi
 
-  NAME=${1:-$(tinct_active)}
   local file
+  EDIT_TTY=$(tinct_this_tty 2>/dev/null) || EDIT_TTY=''
+  if [ -n "$1" ]; then
+    NAME=$1
+  else
+    tinct_resolve "$EDIT_TTY"; NAME=$RESOLVED
+  fi
   file=$(tinct_theme_file "$NAME") || { printf 'tinct: no such theme: %s\n' "$NAME" >&2; return 1; }
 
   typeset -A V HH SS LL
@@ -244,7 +250,10 @@ tinct_edit() {
         fi ;;
       w)
         tinct_edit_write "$NAME"
-        tinct_set_active "$NAME"
+        # Saving pins the theme to the terminal you are looking at. It does
+        # not touch the default -- editing one window's colors should not
+        # change what every future window opens with.
+        [ -n "$EDIT_TTY" ] && tinct_session_set "$EDIT_TTY" "$NAME"
         file=$TINCT_THEME_DIR/$NAME.theme
         DIRTY=''
         MSG="\033[38;5;2msaved\033[0m ${TINCT_THEME_DIR}/${NAME}.theme" ;;
@@ -256,7 +265,7 @@ tinct_edit() {
             LABEL=$newname; NAME=$newname
             file=$TINCT_THEME_DIR/$NAME.theme
             tinct_edit_write "$NAME"
-            tinct_set_active "$NAME"
+            [ -n "$EDIT_TTY" ] && tinct_session_set "$EDIT_TTY" "$NAME"
             DIRTY=''
             MSG="\033[38;5;2mcreated\033[0m ${file}"
           fi
@@ -270,9 +279,8 @@ tinct_edit() {
 
   if [ -n "$DIRTY" ]; then
     printf 'unsaved changes to %s were discarded\n' "$NAME"
-    local back
-    back=$(tinct_active)
-    tinct_load "$back" && tinct_apply_live
+    tinct_resolve "$EDIT_TTY"
+    tinct_load "$RESOLVED" && tinct_apply_live
   else
     tinct_edit_push
     printf '%s applied\n' "$NAME"
