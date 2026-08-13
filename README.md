@@ -133,7 +133,9 @@ Two other honest limits:
 
 ## Themes
 
-98 of them: 74 dark, 24 light.
+100 of them: 75 dark, 25 light. **[See them all →](https://solvyxtech.github.io/tinct/)**
+— every theme previewed in its own colors, generated from the theme files by
+`tools/gallery.py` so it cannot drift from what ships.
 
 **Dark**
 
@@ -150,19 +152,19 @@ forest-floor          github-dark           glacier-deep
 gruvbox-dark          gunmetal              high-contrast-dark
 iceberg               iron-oxide            kanagawa
 koi-pond              lacquer               leather-bound
-midnight-ink          midnight-orchid       mono-amber
-mono-green            mono-slate            monokai
-monsoon               moss-stone            nebula
-neon-alley            night-owl             nord
-obsidian              oceanic-next          oil-slick
-one-dark              palenight             peat-bog
-petrichor             plum-dusk             redwood
-rose-pine             sea-glass             selenized-dark
-slate-harbor          solarized-dark        spruce
-srcery                stained-glass         sumi-ink
-synthwave             tidepool              tokyo-night
-tokyo-night-storm     ultraviolet           warm-charcoal
-wine-cellar           zenburn
+mesa                  midnight-ink          midnight-orchid
+mono-amber            mono-green            mono-slate
+monokai               monsoon               moss-stone
+nebula                neon-alley            night-owl
+nord                  obsidian              oceanic-next
+oil-slick             one-dark              palenight
+peat-bog              petrichor             plum-dusk
+redwood               rose-pine             sea-glass
+selenized-dark        slate-harbor          solarized-dark
+spruce                srcery                stained-glass
+sumi-ink              synthwave             tidepool
+tokyo-night           tokyo-night-storm     ultraviolet
+warm-charcoal         wine-cellar           zenburn
 ```
 
 **Light**
@@ -171,12 +173,16 @@ wine-cellar           zenburn
 ayu-light             catppuccin-latte      cherry-blossom
 clay                  everforest-light      github-light
 gray-card             gruvbox-light         high-contrast-light
-highlighter           lavender-fog          linen
-matcha                mint-paper            newsprint
-paper-cream           papercolor            porcelain
-rose-pine-dawn        sandstone             sea-fog
-sepia-print           sky-wash              solarized-light
+highlighter           lavender-fog          ledger
+linen                 matcha                mint-paper
+newsprint             paper-cream           papercolor
+porcelain             rose-pine-dawn        sandstone
+sea-fog               sepia-print           sky-wash
+solarized-light
 ```
+
+Adding one is a file: copy any theme in `themes/`, change the values, run
+`python3 tools/gallery.py` so the gallery picks it up.
 
 Every one is checked automatically, because a theme can parse perfectly and
 still be unusable. `tests/themes.py` verifies body text meets WCAG AA against
@@ -221,7 +227,7 @@ started when the answer actually changes — `cd` inside one project is free.
 ## The picker
 
 ```
-  tinct  98 themes · here: night-owl
+  tinct  100 themes · here: night-owl
 
       mono-slate           │   Nord
       monokai              │   Arctic north-bluish, official palette

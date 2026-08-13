@@ -89,3 +89,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check every bundled theme is legible
         run: python3 tests/themes.py
+
+      # The gallery is generated from the theme files. If it is not regenerated
+      # after a theme changes, the published page shows colors nobody ships.
+      - name: Check the gallery matches the themes
+        run: |
+          python3 tools/gallery.py
+          git diff --exit-code docs/index.html \
+            || { echo "docs/index.html is stale -- run: python3 tools/gallery.py"; exit 1; }
