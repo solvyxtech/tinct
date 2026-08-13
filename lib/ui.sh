@@ -67,8 +67,10 @@ frame_flush() {
 # One-char reads. bash needs -N, not -n: with -n it treats CR as a delimiter
 # and hands back an empty string, making Enter indistinguishable from NUL.
 if [ -n "${ZSH_VERSION:-}" ]; then
-  tinct_rd1()  { read -k 1 "$1"; }
-  tinct_rd1t() { read -k 1 -t "$2" "$1"; }
+  # -r matters even for a single character: without it a backslash is treated
+  # as an escape rather than as the key somebody pressed.
+  tinct_rd1()  { read -r -k 1 "$1"; }
+  tinct_rd1t() { read -r -k 1 -t "$2" "$1"; }
 else
   tinct_rd1()  { IFS= read -r -s -N 1 "$1"; }
   tinct_rd1t() { IFS= read -r -s -N 1 -t "$2" "$1"; }
@@ -211,7 +213,7 @@ tinct_fit() {              # <text> <width> -> FIT
 # Each row is composed to fit rather than truncated afterwards, so a long
 # description or a narrow window costs detail instead of spilling over the edge.
 tinct_preview_lines() {    # <want_sample 0|1> <width>
-  local want=$1 w=$2 c i=0
+  local want=$1 w=$2 i=0
   PREVIEW=()
 
   tinct_fit "$TH_LABEL" "$w"

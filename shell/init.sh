@@ -48,10 +48,19 @@ tinct__trim() {            # -> TINCT_T
 
 tinct__theme_file() {      # <name> -> TINCT_F
   TINCT_F=''
-  if [ -r "$TINCT_HOME/themes/$1.theme" ]; then TINCT_F=$TINCT_HOME/themes/$1.theme
-  elif [ -r "$TINCT_REPO/themes/$1.theme" ]; then TINCT_F=$TINCT_REPO/themes/$1.theme
+  if [ -f "$TINCT_HOME/themes/$1.theme" ]; then TINCT_F=$TINCT_HOME/themes/$1.theme
+  elif [ -f "$TINCT_REPO/themes/$1.theme" ]; then TINCT_F=$TINCT_REPO/themes/$1.theme
   fi
   [ -n "$TINCT_F" ]
+}
+
+# Same rule as lib/core.sh: never forward a value we cannot vouch for.
+tinct__is_hex() {
+  case $1 in
+    '#'[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) return 0 ;;
+    '#'[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) return 0 ;;
+  esac
+  return 1
 }
 
 # Write a theme straight to this terminal. Same OSC sequences lib/core.sh
@@ -66,7 +75,7 @@ tinct_paint() {            # <theme name>
     case $line in *=*) ;; *) continue ;; esac
     tinct__trim "${line%%=*}"; key=$TINCT_T
     tinct__trim "${line#*=}"; val=$TINCT_T
-    [ -n "$val" ] || continue
+    tinct__is_hex "$val" || continue
     case $key in
       FG)     out="${out}${esc}]10;${val}${bel}" ;;
       BG)     out="${out}${esc}]11;${val}${bel}" ;;

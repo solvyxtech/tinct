@@ -38,6 +38,7 @@ else
 fi
 
 run "themes"      python3 tests/themes.py
+run "robust"      python3 tests/robust.py
 run "layout"      python3 tests/render.py
 run "interactive" python3 tests/interactive.py
 run "shell"       python3 tests/wrap.py

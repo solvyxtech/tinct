@@ -283,18 +283,27 @@ and pads columns by string slicing instead of a subshell per row.
 tests/run.sh
 ```
 
-Over 5,000 checks. The unit tests run under both shells; the rest drive the real
-binary — layout assertions across nine terminal sizes, an interactive suite that
-drives the picker and editor through a pty, and one that exercises the shell
-integration, hooks and ssh wrapper included.
+Around 6,000 checks. The unit tests run under both shells; the rest drive the
+real binary through a pty or a subprocess.
 
 ```
 tests/unit.sh         pure functions: viewport, color math, parsing, rules
 tests/themes.py       every bundled theme is legible and distinct
+tests/robust.py       bad input, bad paths, bad permissions, races
 tests/render.py       every frame fits its window and never overflows
 tests/interactive.py  keys do what they claim, via a real pty
 tests/wrap.py         hooks, wrappers, and per-terminal resolution
 ```
+
+`robust.py` is the one that has found the most. It runs everything from a config
+directory whose path contains spaces, quotes and parentheses; from a checkout
+reached through a symlink; against themes that are empty, binary, CRLF-encoded,
+full of invalid colors, or actually directories; with an unwritable config; with
+eight processes writing state at once; and with 358 themes installed. Nothing is
+allowed to hang, crash, print a shell error, or leave state half-written.
+
+State files are written to a temporary name and renamed into place, so a reader
+arriving mid-write sees the old value or the new one, never an empty file.
 
 ## License
 

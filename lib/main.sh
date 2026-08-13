@@ -56,7 +56,12 @@ cmd_set() {
       --tty)        tty=${1#/dev/}; shift ;;
       --) ;;
       -*) printf 'tinct: unknown option %s\n' "$a" >&2; return 1 ;;
-      *)  [ -z "$name" ] && name=$a || { printf 'tinct: unexpected argument %s\n' "$a" >&2; return 1; } ;;
+      *)  if [ -z "$name" ]; then
+            name=$a
+          else
+            printf 'tinct: unexpected argument %s\n' "$a" >&2
+            return 1
+          fi ;;
     esac
   done
 

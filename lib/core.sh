@@ -67,6 +67,17 @@ tinct_trim() { tinct_trim_into "$1"; printf '%s' "$TRIMMED"; }
 
 tinct_upper() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]'; }
 
+# Is this a color we are willing to hand to a terminal? Anything else in a
+# theme file gets dropped rather than forwarded -- a hand-edited theme should
+# lose one color, not send garbage down the wire inside an escape sequence.
+tinct_is_hex() {
+  case $1 in
+    '#'[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) return 0 ;;
+    '#'[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) return 0 ;;
+  esac
+  return 1
+}
+
 # Does a value match a glob pattern held in a variable? bash treats an
 # unquoted $var in a case pattern as a pattern; zsh does not without
 # GLOB_SUBST, and ${~var} is the local way of asking for it.
@@ -203,9 +214,11 @@ TH_ANSI=()
 
 tinct_theme_file() {       # name -> readable path, user dir winning
   local n=$1
-  if [ -r "$TINCT_THEME_DIR/$n.theme" ]; then
+  # -f, not -e or -r: a directory called "something.theme" is readable, and
+  # trying to read one is an error rather than an empty theme.
+  if [ -f "$TINCT_THEME_DIR/$n.theme" ] && [ -r "$TINCT_THEME_DIR/$n.theme" ]; then
     printf '%s' "$TINCT_THEME_DIR/$n.theme"
-  elif [ -r "$TINCT_BUNDLED_DIR/$n.theme" ]; then
+  elif [ -f "$TINCT_BUNDLED_DIR/$n.theme" ] && [ -r "$TINCT_BUNDLED_DIR/$n.theme" ]; then
     printf '%s' "$TINCT_BUNDLED_DIR/$n.theme"
   else
     return 1
@@ -218,7 +231,7 @@ tinct_load() {             # name-or-path -> TH_* globals
     */*) ;;
     *) file=$(tinct_theme_file "$file") || return 1 ;;
   esac
-  [ -r "$file" ] || return 1
+  [ -f "$file" ] && [ -r "$file" ] || return 1
 
   TH_NAME=${file##*/}; TH_NAME=${TH_NAME%.theme}
   TH_LABEL=$TH_NAME; TH_DESC=""
@@ -234,8 +247,12 @@ tinct_load() {             # name-or-path -> TH_* globals
     tinct_trim_into "${line%%=*}"; key=$TRIMMED
     tinct_trim_into "${line#*=}"; val=$TRIMMED
     case $key in
-      LABEL)  TH_LABEL=$val ;;
-      DESC)   TH_DESC=$val ;;
+      LABEL)  TH_LABEL=$val; continue ;;
+      DESC)   TH_DESC=$val; continue ;;
+    esac
+    # Everything below here is a color, so anything unusable is discarded.
+    tinct_is_hex "$val" || continue
+    case $key in
       BG)     TH_BG=$val ;;
       FG)     TH_FG=$val ;;
       CURSOR) TH_CURSOR=$val ;;
@@ -256,7 +273,7 @@ tinct_list() {             # every theme name, user dir shadowing bundled
   for d in "$TINCT_THEME_DIR" "$TINCT_BUNDLED_DIR"; do
     [ -d "$d" ] || continue
     for f in "$d"/*.theme; do
-      [ -e "$f" ] || continue
+      [ -f "$f" ] || continue
       b=${f##*/}
       printf '%s\n' "${b%.theme}"
     done
@@ -422,13 +439,25 @@ tinct_default() {
   printf '%s' "$n"
 }
 
+# Writing state with `>` truncates first, so a reader arriving mid-write sees
+# an empty file and falls back to something else. Write beside the target and
+# rename over it instead: rename is atomic, so a reader sees either the old
+# value or the new one and never nothing.
+tinct_write_atomic() {     # <path> <line>
+  local dest=$1 tmp
+  mkdir -p "${dest%/*}" 2>/dev/null || return 1
+  tmp=$dest.$$
+  printf '%s\n' "$2" > "$tmp" 2>/dev/null || return 1
+  mv -f "$tmp" "$dest" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; return 1; }
+  return 0
+}
+
 tinct_set_default() {
   tinct_theme_file "$1" >/dev/null 2>&1 || return 1
-  mkdir -p "$TINCT_HOME"
-  printf '%s\n' "$1" > "$TINCT_HOME/default"
+  tinct_write_atomic "$TINCT_HOME/default" "$1" || return 1
   # Keep the older file in step so a half-upgraded setup cannot disagree
   # with itself about which theme is the default.
-  [ -e "$TINCT_ACTIVE_FILE" ] && printf '%s\n' "$1" > "$TINCT_ACTIVE_FILE"
+  [ -e "$TINCT_ACTIVE_FILE" ] && tinct_write_atomic "$TINCT_ACTIVE_FILE" "$1"
   return 0
 }
 
@@ -443,8 +472,7 @@ tinct_session_get() {      # <ttyname> -> theme, or nothing
 
 tinct_session_set() {      # <ttyname> <theme>
   tinct_theme_file "$2" >/dev/null 2>&1 || return 1
-  mkdir -p "$TINCT_SESSION_DIR"
-  printf '%s\n' "$2" > "$TINCT_SESSION_DIR/$1"
+  tinct_write_atomic "$TINCT_SESSION_DIR/$1" "$2"
 }
 
 tinct_session_clear() { rm -f "$TINCT_SESSION_DIR/$1" 2>/dev/null; return 0; }

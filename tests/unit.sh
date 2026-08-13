@@ -312,6 +312,48 @@ tinct_pad "abcdef" 3; eq "pad: truncates" "abc"  "$PAD"
 tinct_pad "" 4;     eq "pad: empty"     "    "   "$PAD"
 tinct_pad "abc" 0;  eq "pad: zero"      ""       "$PAD"
 
+
+# --- color validation --------------------------------------------------------
+tinct_is_hex '#AABBCC' && ok "hex: six digits"        1 || ok "hex: six digits"        0
+tinct_is_hex '#abc'    && ok "hex: three digits"      1 || ok "hex: three digits"      0
+tinct_is_hex 'AABBCC'  && ok "hex: needs a hash"      0 || ok "hex: needs a hash"      1
+tinct_is_hex '#zzzzzz' && ok "hex: rejects non-hex"   0 || ok "hex: rejects non-hex"   1
+tinct_is_hex '#12345'  && ok "hex: rejects five"      0 || ok "hex: rejects five"      1
+tinct_is_hex ''        && ok "hex: rejects empty"     0 || ok "hex: rejects empty"     1
+tinct_is_hex '#AABBCC extra' && ok "hex: rejects trailing junk" 0 || ok "hex: rejects trailing junk" 1
+
+# A theme carrying junk loses that one color rather than forwarding it.
+cat > "$TINCT_THEME_DIR/junk.theme" <<'EOF'
+LABEL=Junk
+DESC=one good color and several bad ones
+BG=#101010
+FG=notacolor
+CURSOR=#zzz
+ANSI0=#00FF00
+ANSI1=rgb(1,2,3)
+EOF
+tinct_load junk
+eq "load: keeps the valid color"      "#101010" "$TH_BG"
+eq "load: drops an invalid fg"        ""        "$TH_FG"
+eq "load: drops an invalid cursor"    ""        "$TH_CURSOR"
+eq "load: keeps a valid palette entry" "#00FF00" "${TH_ANSI[0]}"
+eq "load: drops an invalid palette entry" ""     "${TH_ANSI[1]}"
+case $(tinct_seq) in *notacolor*|*rgb\(*) ok "seq: never forwards junk to the terminal" 0 ;;
+                     *) ok "seq: never forwards junk to the terminal" 1 ;; esac
+
+# A directory that looks like a theme must not be read as one.
+mkdir -p "$TINCT_THEME_DIR/adir.theme"
+tinct_load adir 2>/dev/null && ok "load: refuses a directory" 0 || ok "load: refuses a directory" 1
+eq "list: skips a directory" "0" "$(tinct_list | grep -c '^adir$')"
+
+# --- atomic state writes -----------------------------------------------------
+tinct_write_atomic "$TINCT_HOME/atomic-probe" "hello"
+eq "atomic: writes the value" "hello" "$(cat "$TINCT_HOME/atomic-probe")"
+tinct_write_atomic "$TINCT_HOME/atomic-probe" "second"
+eq "atomic: overwrites cleanly" "second" "$(cat "$TINCT_HOME/atomic-probe")"
+eq "atomic: leaves no temp files" "0" "$(find "$TINCT_HOME" -maxdepth 1 -name 'atomic-probe.*' | grep -c .)"
+tinct_write_atomic "/nonexistent-root-dir-xyz/nope" "x" 2>/dev/null && ok "atomic: fails on an unwritable path" 0 || ok "atomic: fails on an unwritable path" 1
+
 rm -rf "$TINCT_HOME"
 printf '%s: %d passed, %d failed\n' "$SH" "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -104,7 +104,7 @@ tinct_edit_write() {      # <name>
 }
 
 tinct_draw_edit() {
-  local gcols grows band i r c slot line contrast warn
+  local gcols grows band i c slot line warn
 
   tinct_size
   band=$(( TERM_ROWS - 5 ))
