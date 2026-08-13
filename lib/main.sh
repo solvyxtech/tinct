@@ -13,7 +13,7 @@ fi
 . "$TINCT_ROOT/lib/ui.sh"
 . "$TINCT_ROOT/lib/edit.sh"
 
-TINCT_VERSION=1.0.0
+TINCT_VERSION=1.1.0
 
 tinct_read_config
 

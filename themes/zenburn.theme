@@ -1,6 +1,6 @@
 # zenburn
 LABEL=Zenburn
-DESC=Low contrast grey-green, easy for long sessions
+DESC=Low contrast gray-green, easy for long sessions
 
 BG=#3F3F3F
 FG=#DCDCCC
