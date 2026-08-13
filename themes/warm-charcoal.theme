@@ -1,6 +1,6 @@
 # warm-charcoal
 LABEL=Warm Charcoal
-DESC=Original near-black warm charcoal, terminal palette untouched
+DESC=Near-black warm charcoal, palette left alone
 
 BG=#17120F
 FG=#E8DDD3

@@ -94,6 +94,46 @@ globs against the ssh destination, with any `user@` stripped first.
 
 A terminal you have pinned by hand is left alone. Explicit beats automatic.
 
+## Themes
+
+58 of them: 44 dark, 14 light.
+
+**Dark**
+
+```
+arctic-dim            ayu-dark              ayu-mirage
+catppuccin-frappe     catppuccin-mocha      cobalt
+copper-patina         dark-cream            desert-night
+dracula               ember                 espresso
+everforest-dark       forest-floor          github-dark
+gruvbox-dark          high-contrast-dark    iceberg
+kanagawa              midnight-ink          mono-amber
+mono-green            mono-slate            monokai
+moss-stone            night-owl             nord
+obsidian              oceanic-next          one-dark
+palenight             plum-dusk             rose-pine
+sea-glass             selenized-dark        slate-harbor
+solarized-dark        srcery                synthwave
+tokyo-night-storm     tokyo-night           warm-charcoal
+wine-cellar           zenburn
+```
+
+**Light**
+
+```
+ayu-light             catppuccin-latte      everforest-light
+github-light          gruvbox-light         high-contrast-light
+lavender-fog          mint-paper            paper-cream
+papercolor            porcelain             rose-pine-dawn
+sepia-print           solarized-light
+```
+
+Every one is checked automatically, because a theme can parse perfectly and
+still be unusable. `tests/themes.py` verifies body text meets WCAG AA against
+the background, that dim text and each palette color separate from it, that a
+selection is readable and the cursor findable, and that no two themes are
+near-copies. Adding a theme that fails any of those breaks the build.
+
 ## Install
 
 Requires **zsh**, or **bash 4 or newer**. macOS still ships bash 3.2, which
@@ -131,7 +171,7 @@ started when the answer actually changes — `cd` inside one project is free.
 ## The picker
 
 ```
-  tinct  36 themes · here: gruvbox-dark
+  tinct  58 themes · here: gruvbox-dark
 
   ● gruvbox-dark        │   Nord
     high-contrast-dark  │   Arctic north-bluish, official palette
@@ -243,13 +283,14 @@ and pads columns by string slicing instead of a subshell per row.
 tests/run.sh
 ```
 
-Around 850 checks. The unit tests run under both shells; the rest drive the real
+Over 5,000 checks. The unit tests run under both shells; the rest drive the real
 binary — layout assertions across nine terminal sizes, an interactive suite that
 drives the picker and editor through a pty, and one that exercises the shell
 integration, hooks and ssh wrapper included.
 
 ```
 tests/unit.sh         pure functions: viewport, color math, parsing, rules
+tests/themes.py       every bundled theme is legible and distinct
 tests/render.py       every frame fits its window and never overflows
 tests/interactive.py  keys do what they claim, via a real pty
 tests/wrap.py         hooks, wrappers, and per-terminal resolution

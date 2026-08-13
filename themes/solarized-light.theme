@@ -3,7 +3,7 @@ LABEL=Solarized Light
 DESC=The light half of Solarized
 
 BG=#FDF6E3
-FG=#657B83
+FG=#5C7077
 CURSOR=#586E75
 SEL_BG=#EEE8D5
 SEL_FG=#657B83

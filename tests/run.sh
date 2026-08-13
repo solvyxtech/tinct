@@ -37,6 +37,7 @@ else
   printf '\n=== unit (bash) ===\nskipped: no bash 4+ found, set TINCT_BASH to test it\n'
 fi
 
+run "themes"      python3 tests/themes.py
 run "layout"      python3 tests/render.py
 run "interactive" python3 tests/interactive.py
 run "shell"       python3 tests/wrap.py
