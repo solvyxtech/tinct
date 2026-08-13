@@ -11,6 +11,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TINCT = os.path.join(ROOT, "bin", "tinct")
 ANSI = re.compile(r"\033\[[0-9;?]*[A-Za-z]|\033\][^\a]*\a")
 
+def _bash():
+    """bash 4+ to test against. run.sh exports TINCT_BASH; fall back to PATH so
+    the suites also work when run directly, including on Linux where Homebrew
+    paths do not exist."""
+    import shutil as _sh
+    return os.environ.get("TINCT_BASH") or _sh.which("bash") or "bash"
+
+
 fails = []
 checks = 0
 
@@ -78,7 +86,7 @@ SIZES = [
     (30, 79),    # one column, just under the two-pane threshold
 ]
 
-for shell in ("zsh", os.environ.get("TINCT_BASH", "/opt/homebrew/bin/bash")):
+for shell in ("zsh", _bash()):
     label = "zsh" if shell == "zsh" else "bash"
     names = themes(shell, None)
     if not names:
@@ -114,7 +122,7 @@ raw = subprocess.run([TINCT, "__frame", "10", "28", "116"], capture_output=True,
 check(not raw.endswith("\n"), "frame must not end with a newline")
 
 # Filtering narrows the list and keeps the cursor consistent.
-for shell in ("zsh", os.environ.get("TINCT_BASH", "/opt/homebrew/bin/bash")):
+for shell in ("zsh", _bash()):
     label = "zsh" if shell == "zsh" else "bash"
     lines = [ANSI.sub("", l) for l in frame(shell, 0, 28, 116, "mono")]
     body = "\n".join(lines)

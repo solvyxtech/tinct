@@ -13,6 +13,8 @@ fi
 . "$TINCT_ROOT/lib/ui.sh"
 . "$TINCT_ROOT/lib/edit.sh"
 
+TINCT_VERSION=1.0.0
+
 tinct_read_config
 
 # --- non-interactive commands ------------------------------------------------
@@ -247,6 +249,7 @@ tinct -- terminal color themes, applied to the session you are already in
   tinct rules               show the automatic theme rules
   tinct reset               hand the terminal back its own colors
   tinct where               show paths
+  tinct version             show the version
 
 Each terminal keeps its own theme. New terminals get the default, and any
 one of them can be pinned to something else without disturbing the rest.
@@ -294,6 +297,7 @@ case ${1:-select} in
   ls|list|l)      cmd_ls ;;
   reset)          tinct_reset_live; printf 'terminal colors reset\n' ;;
   where)          cmd_where ;;
+  version|--version|-v) printf 'tinct %s\n' "$TINCT_VERSION" ;;
   help|-h|--help) cmd_help ;;
   __frame)        shift; cmd_frame "$@" ;;
   *)              printf 'tinct: unknown command: %s\n' "$1" >&2; cmd_help >&2; exit 1 ;;

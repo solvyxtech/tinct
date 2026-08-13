@@ -12,7 +12,15 @@ from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TINCT = os.path.join(ROOT, "bin", "tinct")
-SHELLS = ["zsh", os.environ.get("TINCT_BASH", "/opt/homebrew/bin/bash")]
+def _bash():
+    """bash 4+ to test against. run.sh exports TINCT_BASH; fall back to PATH so
+    the suites also work when run directly, including on Linux where Homebrew
+    paths do not exist."""
+    import shutil as _sh
+    return os.environ.get("TINCT_BASH") or _sh.which("bash") or "bash"
+
+
+SHELLS = ["zsh", _bash()]
 
 fails, checks = [], 0
 
@@ -165,16 +173,22 @@ for shell in SHELLS:
     shutil.rmtree(home, ignore_errors=True)
 
     # --- unwritable config ----------------------------------------------------
+    # Skipped as root: root ignores the permission bits, so the case cannot be
+    # set up at all. CI containers run as root; laptops do not.
     home = sandbox()
-    os.chmod(home, 0o500)
-    try:
+    if os.geteuid() == 0:
+        shutil.rmtree(home, ignore_errors=True)
+        home = None
+    if home:
+      os.chmod(home, 0o500)
+      try:
         r = run(["set", "dracula"], home, shell)
         check(r is not None, f"{tag}: unwritable config: hung")
         if r:
             check("Traceback" not in r.stderr, f"{tag}: unwritable config does not trace back")
             check("#" in r.stdout or r.returncode != 0,
                   f"{tag}: unwritable config either paints or fails, not neither")
-    finally:
+      finally:
         os.chmod(home, 0o700)
         shutil.rmtree(home, ignore_errors=True)
 
@@ -263,7 +277,8 @@ if r:
     lines = r.stdout.replace("\033[H\033[2J", "").split("\n")
     check(len(lines) <= 28, f"358 themes still fit the window ({len(lines)} lines)")
     check("▸" in r.stdout, "the cursor is still on screen with 358 themes")
-check(elapsed < 6, f"rendering with 358 themes stays responsive ({elapsed:.1f}s)")
+budget = 6 * float(os.environ.get("TINCT_TEST_SLOW", "1"))
+check(elapsed < budget, f"rendering with 358 themes stays responsive ({elapsed:.1f}s)")
 shutil.rmtree(home, ignore_errors=True)
 
 # --- a theme with absurd metadata --------------------------------------------

@@ -1,0 +1,88 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux runners have bash 5 but no zsh. macOS runners have zsh but only
+      # bash 3.2, which cannot run this -- both shells have to be present or
+      # the suite silently tests half of what it claims to.
+      - name: Install the other shell
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq zsh
+          else
+            brew install bash
+          fi
+
+      - name: Versions under test
+        run: |
+          zsh --version
+          bash --version | head -1
+          for b in /opt/homebrew/bin/bash /usr/local/bin/bash bash; do
+            command -v "$b" >/dev/null 2>&1 || continue
+            v=$("$b" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null) || continue
+            [ "${v:-0}" -ge 4 ] && { echo "bash 4+ for tests: $b ($v)"; break; }
+          done
+          python3 --version
+
+      # Runners are slower and more variable than a laptop, and several suites
+      # drive a pty with real timing. TINCT_TEST_SLOW scales those waits.
+      - name: Run the suite
+        run: tests/run.sh
+        env:
+          TINCT_TEST_SLOW: "3"
+
+  lint:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: Lint
+        run: |
+          # The launcher and installer are POSIX sh. SC2016 is excluded because
+          # the single quotes in 'echo ${BASH_VERSINFO[0]}' are the point: that
+          # string is evaluated by the bash being probed, not by this shell.
+          shellcheck -s sh -e SC2016 bin/tinct install.sh tests/run.sh
+          # lib/ and shell/ are a zsh/bash intersection. shellcheck only knows
+          # bash, so the zsh-only expansions it cannot parse are excluded by
+          # code rather than by ignoring whole files:
+          #   SC1090/SC1091  sourcing paths built at runtime
+          #   SC2016         single quotes are deliberate ('echo ${BASH_VERSINFO[0]}')
+          #   SC2034         globals that are read in a different file
+          #   SC2296/SC2298  ${~var} and ${${(%):-%x}} -- zsh, in zsh-only branches
+          #   SC2254         case patterns from variables, which is the point
+          shellcheck -s bash \
+            -e SC1090,SC1091,SC2016,SC2034,SC2296,SC2298,SC2254,SC2153,SC2004,SC2321,SC2329 \
+            lib/*.sh shell/init.sh
+          # The test file additionally uses `call && ok LABEL 0 || ok LABEL 1`
+          # to assert that a call fails. ok() cannot itself fail, so the || arm
+          # runs only when the call did -- which is the assertion.
+          shellcheck -s bash \
+            -e SC1090,SC1091,SC2016,SC2034,SC2296,SC2298,SC2254,SC2153,SC2004,SC2321,SC2329,SC2015 \
+            tests/unit.sh
+
+  themes:
+    name: theme quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every bundled theme is legible
+        run: python3 tests/themes.py

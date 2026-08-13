@@ -153,6 +153,12 @@ tinct_sync() {
 }
 
 # --- wrapping a single command ----------------------------------------------
+# Set while a wrapped command owns the window. It is deliberately not `local`:
+# suspending the command drops you back to your prompt with this function still
+# part-way through, and the prompt hook needs to see that the colors on screen
+# are not the ones this terminal should be wearing.
+TINCT_WRAP_ACTIVE=''
+
 tinct_run() {              # <theme-or-empty> <command> [args...]
   local theme=$1
   shift
@@ -164,14 +170,25 @@ tinct_run() {              # <theme-or-empty> <command> [args...]
   local rc=0 name=${1##*/}
   # Registered before the command starts, so an interrupt still hands the
   # terminal back rather than stranding it mid-theme.
+  #
+  # Suspension is handled by the prompt hook rather than by a CONT trap here.
+  # The two shells suspend different things -- zsh stops the whole function,
+  # bash stops only the child and runs the rest of this function immediately --
+  # so there is no one signal this wrapper can catch on the way back in. See
+  # tinct_prompt_hook, and the note about resuming in the README.
   trap 'tinct_restore; trap - INT TERM' INT TERM
 
-  [ -n "$theme" ] && tinct_paint "$theme"
+  TINCT_WRAP_ACTIVE=1
+  if [ -n "$theme" ]; then
+    tinct_paint "$theme"
+    TINCT_SHOWING=$theme
+  fi
   printf '\033]0;%s\a' "$name"
 
   TINCT_WRAPPED=1 command "$@" || rc=$?
 
   trap - INT TERM
+  TINCT_WRAP_ACTIVE=''
   tinct_restore
   printf '\033]0;%s\a' "${PWD##*/}"
   return $rc
@@ -222,14 +239,30 @@ tinct_wrap_ssh() {
   }
 }
 
+# Runs just before each prompt. Almost always a single variable test, so it is
+# cheap enough to sit in the prompt path.
+#
+# The case it exists for: you suspend a wrapped command with ctrl-Z. You are
+# back at your own prompt, but the window is still wearing the colors of the
+# thing you suspended. Nothing else can notice that, because the wrapper is
+# suspended part-way through its own cleanup.
+tinct_prompt_hook() {
+  [ -n "$TINCT_WRAP_ACTIVE" ] || return 0
+  TINCT_WRAP_ACTIVE=''
+  tinct_restore
+}
+
 # --- hooks -------------------------------------------------------------------
 tinct_enable_auto() {
   if [ -n "${ZSH_VERSION:-}" ]; then
-    autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook chpwd tinct_sync
+    if autoload -Uz add-zsh-hook 2>/dev/null; then
+      add-zsh-hook chpwd  tinct_sync
+      add-zsh-hook precmd tinct_prompt_hook
+    fi
   else
     case ";${PROMPT_COMMAND:-};" in
-      *";tinct_sync;"*) ;;
-      *) PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}tinct_sync" ;;
+      *";tinct_sync;tinct_prompt_hook;"*) ;;
+      *) PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}tinct_sync;tinct_prompt_hook" ;;
     esac
   fi
   tinct_sync

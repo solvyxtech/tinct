@@ -1,5 +1,7 @@
 # tinct
 
+[![tests](https://github.com/solvyxtech/tinct/actions/workflows/tests.yml/badge.svg)](https://github.com/solvyxtech/tinct/actions/workflows/tests.yml)
+
 Terminal color themes that apply to the session you are already in.
 
 No profile to edit, no new window, nothing to restart. And every terminal keeps
@@ -93,6 +95,26 @@ then puts the window back. Directory rules match a path prefix; host rules are
 globs against the ssh destination, with any `user@` stripped first.
 
 A terminal you have pinned by hand is left alone. Explicit beats automatic.
+
+### What the host rules do and do not match
+
+Host rules match **what you typed**, not what ssh resolves it to. If your
+`~/.ssh/config` maps `Host prod` onto some address, `host prod-*` matches the
+alias `prod` — a machine you reach as `web1` will not match however it is
+configured. Write rules against the names you actually type.
+
+Two other honest limits:
+
+- **The far end can paint over you.** If the remote shell sets its own colors,
+  they win for as long as you are there. The window is put back when the
+  session ends, but "prod is red" is a convention, not an enforcement.
+- **Resuming a suspended command does not restore its theme.** Suspending one
+  with ctrl-Z is handled — the window goes back to this terminal's own colors
+  the moment you are looking at your own prompt again. Bringing it back with
+  `fg` does not re-apply it, because the two shells suspend different things
+  (zsh stops the whole wrapper, bash stops only the child and runs the rest of
+  the wrapper immediately), and neither offers a hook the wrapper can catch on
+  the way back in. Re-run `tinct set <theme>` if it matters.
 
 ## Themes
 
@@ -282,6 +304,11 @@ and pads columns by string slicing instead of a subshell per row.
 ```
 tests/run.sh
 ```
+
+Every push and pull request runs the whole suite on **Ubuntu and macOS**, plus
+shellcheck and the theme checks. That matters more than usual here: the claim
+is that one codebase runs on two shells, and proving it on one laptop proves
+very little.
 
 Around 6,000 checks. The unit tests run under both shells; the rest drive the
 real binary through a pty or a subprocess.

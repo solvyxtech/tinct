@@ -17,6 +17,18 @@ KEYS = {
     "pgdn": b"\033[6~", "pgup": b"\033[5~", "end": b"\033[F", "home": b"\033[H",
 }
 
+# CI machines are slower than a laptop; scale the pty waits rather than let
+# these turn into flakes.
+SLOW = float(os.environ.get("TINCT_TEST_SLOW", "1"))
+
+def _bash():
+    """bash 4+ to test against. run.sh exports TINCT_BASH; fall back to PATH so
+    the suites also work when run directly, including on Linux where Homebrew
+    paths do not exist."""
+    import shutil as _sh
+    return os.environ.get("TINCT_BASH") or _sh.which("bash") or "bash"
+
+
 fails = []
 checks = 0
 
@@ -62,11 +74,11 @@ def run(shell, args, keys, home, rows=28, cols=116, extra_env=None):
                     return
                 out.extend(chunk)
 
-    pump(0.5)
+    pump(0.5 * SLOW)
     for k in keys:
         os.write(fd, KEYS.get(k, k.encode()))
-        pump(0.22)
-    pump(0.5)
+        pump(0.22 * SLOW)
+    pump(0.5 * SLOW)
     try:
         os.close(fd)
     except OSError:
@@ -139,7 +151,7 @@ def theme_names():
 NAMES = theme_names()
 FIRST, SECOND, THIRD, LAST = NAMES[0], NAMES[1], NAMES[2], NAMES[-1]
 
-SHELLS = ["zsh", os.environ.get("TINCT_BASH", "/opt/homebrew/bin/bash")]
+SHELLS = ["zsh", _bash()]
 
 for shell in SHELLS:
     tag = "zsh" if shell == "zsh" else "bash"

@@ -15,6 +15,16 @@ SOLAR_LIGHT_BG = "\033]11;#FDF6E3\a"
 GRUV_BG = "\033]11;#282828\a"
 EMBER_BG = "\033]11;#151210\a"
 
+SLOW = float(os.environ.get("TINCT_TEST_SLOW", "1"))
+
+def _bash():
+    """bash 4+ to test against. run.sh exports TINCT_BASH; fall back to PATH so
+    the suites also work when run directly, including on Linux where Homebrew
+    paths do not exist."""
+    import shutil as _sh
+    return os.environ.get("TINCT_BASH") or _sh.which("bash") or "bash"
+
+
 fails = []
 checks = 0
 
@@ -27,6 +37,9 @@ def check(cond, label):
 
 
 def run_script(shell_argv, script, home, interrupt_after=None, wait=3.0):
+    wait *= SLOW
+    if interrupt_after:
+        interrupt_after *= SLOW
     env = dict(os.environ)
     env.update({"TINCT_HOME": home, "TERM": "xterm-256color"})
     for k in ("TINCT_TTY", "TINCT_ROWS", "TINCT_COLS", "TINCT_DISABLE"):
@@ -78,7 +91,7 @@ def sandbox(default="gruvbox-dark", rules=None, sessions=None):
     return home
 
 
-SHELLS = [["zsh", "-f"], [os.environ.get("TINCT_BASH", "/opt/homebrew/bin/bash"), "--norc"]]
+SHELLS = [["zsh", "-f"], [_bash(), "--norc"]]
 
 for argv in SHELLS:
     tag = "zsh" if argv[0] == "zsh" else "bash"
@@ -210,6 +223,63 @@ for argv in SHELLS:
     out = run_script(argv, f'. {INIT}; TINCT_DISABLE=1 tinct_sync', home)
     check(GRUV_BG not in out, f"{tag}: TINCT_DISABLE stops it painting anything")
     shutil.rmtree(home)
+
+# --- suspending a wrapped command must not strand its colors ----------------
+# zsh suspends the whole function; bash suspends only the child and carries on.
+# Either way the window has to go back to what this terminal should be showing
+# the moment you are looking at your own prompt again.
+def suspend_case(argv, tag):
+    import pty as _pty
+    home = sandbox(default="gruvbox-dark")
+    env = dict(os.environ)
+    env.update({"TINCT_HOME": home, "TERM": "xterm-256color", "PS1": "P> "})
+    for k in ("TINCT_TTY", "TINCT_ROWS", "TINCT_COLS", "TINCT_DISABLE"):
+        env.pop(k, None)
+    pid, fd = _pty.fork()
+    if pid == 0:
+        os.environ.clear(); os.environ.update(env)
+        os.execvp(argv[0], argv + ["-i"])
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
+    buf = bytearray()
+
+    def pump(t):
+        end = time.time() + t * SLOW
+        while time.time() < end:
+            r, _, _ = select.select([fd], [], [], 0.05)
+            if r:
+                try:
+                    c = os.read(fd, 65536)
+                except OSError:
+                    return
+                if not c:
+                    return
+                buf.extend(c)
+
+    pump(1.0)
+    os.write(fd, f". {INIT}; tinct_enable_auto; tinct_wrap sleep solarized-light\n".encode())
+    pump(1.2)
+    mark = len(buf)
+    os.write(fd, b"sleep 30\n")
+    pump(1.2)
+    started = buf[mark:].decode("utf-8", "replace")
+    mark = len(buf)
+    os.write(fd, b"\x1a")            # ctrl-Z
+    pump(1.8)
+    suspended = buf[mark:].decode("utf-8", "replace")
+    os.write(fd, b"kill %1 2>/dev/null\n")
+    pump(0.5)
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    shutil.rmtree(home, ignore_errors=True)
+    check(SOLAR_LIGHT_BG in started, f"{tag}: wrapped command paints its theme")
+    check(GRUV_BG in suspended,
+          f"{tag}: suspending a wrapped command puts this terminal's theme back")
+
+
+for argv in SHELLS:
+    suspend_case(argv, "zsh" if argv[0] == "zsh" else "bash")
 
 print(f"wrap: {checks - len(fails)}/{checks} checks passed")
 for f in fails:
