@@ -1,10 +1,10 @@
 #!/bin/sh
-# tinct -- terminal colour themes, applied to the session you are already in.
+# tinct -- terminal color themes, applied to the session you are already in.
 #
 # This is a launcher, not the program. It resolves the checkout directory and
 # picks an interpreter: zsh if present, otherwise bash 4 or newer. macOS ships
 # bash 3.2, which lacks the associative arrays the implementation relies on, so
-# it is skipped in favour of anything newer found on PATH.
+# it is skipped in favor of anything newer found on PATH.
 
 set -e
 

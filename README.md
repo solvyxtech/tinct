@@ -3,14 +3,31 @@
 Terminal color themes that apply to the session you are already in.
 
 No profile to edit, no new window, nothing to restart. Pick a theme and the
-terminal in front of you changes colour, including the program running in it.
+terminal in front of you changes color, including the program running in it.
 
 ```
 tinct                  pick a theme, previewing as you move
 tinct set nord         apply it and remember it
-tinct edit nord        adjust the colours by hand
-tinct reset            hand the terminal back its own colours
+tinct edit nord        adjust the colors by hand
+tinct reset            hand the terminal back its own colors
 ```
+
+## Why this exists
+
+I work in one terminal window with a long-running program sitting in it. Every
+theme switcher I tried wanted me to edit a profile and open a new window, which
+meant killing the thing I was in the middle of just to change the background.
+That is a silly trade to have to make.
+
+So this changes the window in place. It also grew a `watch` setting, because the
+window I actually wanted to retint was usually a *different tab* from the one I
+was typing in — and a program that is already running cannot be asked to
+re-read a config file.
+
+One thing worth being clear about: this themes the **terminal emulator**, not
+your shell and not any particular program. The colors belong to the window, so
+whatever is running in it — a shell, an editor, a REPL, a full-screen TUI — is
+retinted along with everything else. That is the whole trick.
 
 ## Why it works
 
@@ -24,7 +41,7 @@ tinct writes OSC escape sequences straight to the terminal device instead:
 | `OSC 4;N` | palette entry N |
 | `OSC 104`, `110`–`119` | reset the above |
 
-Every mainstream terminal has supported these for years. Because the colours
+Every mainstream terminal has supported these for years. Because the colors
 are a property of the terminal rather than of any program, a long-running
 process in that window is retinted along with everything else.
 
@@ -92,7 +109,7 @@ overflowing on small ones.
 
 ## The editor
 
-`tinct edit <name>` walks the twenty-one colour slots.
+`tinct edit <name>` walks the twenty-one color slots.
 
 | Key | Effect |
 | --- | --- |
@@ -115,7 +132,7 @@ clean.
 
 ## Theme format
 
-Plain `KEY=value` text. Every colour is optional — leave the palette out and
+Plain `KEY=value` text. Every color is optional — leave the palette out and
 the terminal keeps the one it was configured with.
 
 ```
@@ -150,9 +167,9 @@ ANSI15=#ECEFF4
 
 ```
 bin/tinct        launcher: picks zsh or bash 4+, then runs lib/main.sh
-lib/core.sh      theme files, colour maths, escape sequences, tty targeting
+lib/core.sh      theme files, color math, escape sequences, tty targeting
 lib/ui.sh        picker, viewport, preview
-lib/edit.sh      colour editor
+lib/edit.sh      color editor
 shell/init.sh    PATH plus tinct_wrap
 themes/          bundled themes
 tests/           see below
@@ -175,12 +192,12 @@ drives the picker and editor through a pty, and one that exercises the shell
 integration. Roughly 700 checks.
 
 ```
-tests/unit.sh         pure functions: viewport, colour maths, parsing
+tests/unit.sh         pure functions: viewport, color math, parsing
 tests/render.py       every frame fits its window and never overflows
 tests/interactive.py  keys do what they claim, via a real pty
 tests/wrap.py         tinct_wrap applies, restores, and stays out of the way
 ```
 
-## Licence
+## License
 
 MIT.

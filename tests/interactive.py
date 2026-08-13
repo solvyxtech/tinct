@@ -187,7 +187,7 @@ for shell in SHELLS:
     check(os.path.exists(saved), f"{tag}: 'w' writes the theme into the user's own directory")
     if os.path.exists(saved):
         body = open(saved).read()
-        check("FG=" in body and "BG=" in body, f"{tag}: saved theme keeps its colours")
+        check("FG=" in body and "BG=" in body, f"{tag}: saved theme keeps its colors")
         check(active_of(home) == "nord", f"{tag}: saving makes it the default")
     shutil.rmtree(home)
 

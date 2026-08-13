@@ -75,15 +75,15 @@ cmd_where() {
 
 cmd_help() {
   cat <<'EOF'
-tinct -- terminal colour themes, applied to the session you are already in
+tinct -- terminal color themes, applied to the session you are already in
 
   tinct                  pick a theme, previewing as you move
   tinct set <name>       apply it and remember it
   tinct apply [name]     apply without changing the saved default
-  tinct edit [name]      adjust colours by hand
+  tinct edit [name]      adjust colors by hand
   tinct new <name>       copy a theme to start a new one
   tinct ls               list themes
-  tinct reset            hand the terminal back its own colours
+  tinct reset            hand the terminal back its own colors
   tinct where            show paths and what is being repainted
 
 In the picker: arrows move, / narrows the list, e opens the editor,
@@ -120,7 +120,7 @@ case ${1:-select} in
   edit|e)         shift; tinct_edit "$@" ;;
   new|n)          shift; cmd_new "$@" ;;
   ls|list|l)      cmd_ls ;;
-  reset)          tinct_reset_live; printf 'terminal colours reset\n' ;;
+  reset)          tinct_reset_live; printf 'terminal colors reset\n' ;;
   where)          cmd_where ;;
   help|-h|--help) cmd_help ;;
   __frame)        shift; cmd_frame "$@" ;;

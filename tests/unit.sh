@@ -104,7 +104,7 @@ tinct_scroll_glyph 36 23 0 0;  eq "scrollbar: thumb at top when scrolled up" 'â–
 tinct_scroll_glyph 36 23 13 22; eq "scrollbar: thumb at end when scrolled down" 'â–ˆ' "$GLYPH"
 tinct_scroll_glyph 5 23 0 0;   eq "scrollbar: blank when everything fits" ' ' "$GLYPH"
 
-# --- colour maths ------------------------------------------------------------
+# --- color math ------------------------------------------------------------
 eq "hex2rgb 6 digit" "40 40 40"    "$(tinct_hex2rgb '#282828')"
 eq "hex2rgb 3 digit" "255 255 255" "$(tinct_hex2rgb '#fff')"
 eq "hex2rgb no hash" "204 36 29"   "$(tinct_hex2rgb 'CC241D')"

@@ -1,6 +1,6 @@
 # mono-slate
 LABEL=Mono Slate
-DESC=Greyscale, no colour at all
+DESC=Grayscale, no color at all
 
 BG=#131313
 FG=#DEDEDE

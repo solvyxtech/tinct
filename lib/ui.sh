@@ -1,4 +1,4 @@
-# tinct interactive UI: the picker and the colour editor.
+# tinct interactive UI: the picker and the color editor.
 #
 # Layout is computed from the live terminal size on every frame. The list is a
 # viewport into the theme array, never the whole array -- the old version drew
@@ -126,7 +126,7 @@ tinct_norm_hex() {         # fff / #FFF / aabbcc -> #AABBCC, else fail
 }
 
 # --- viewport ----------------------------------------------------------------
-# Pure scroll maths, kept apart from any drawing so the tests can hammer it
+# Pure scroll math, kept apart from any drawing so the tests can hammer it
 # without a terminal. Given the previous top, return the new one such that idx
 # is visible with `scrolloff` rows of context where the list allows it.
 #

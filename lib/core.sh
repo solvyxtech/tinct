@@ -1,4 +1,4 @@
-# tinct core: theme files, colour maths, and talking to the terminal.
+# tinct core: theme files, color math, and talking to the terminal.
 #
 # Written for the zsh/bash intersection -- see bin/tinct for how the
 # interpreter gets picked. Two rules keep it portable:
@@ -16,7 +16,7 @@
 : "${TINCT_BUNDLED_DIR:=$TINCT_ROOT/themes}"
 
 # --- config ------------------------------------------------------------------
-# config is KEY=value, '#' comments. Recognised keys:
+# config is KEY=value, '#' comments. Recognized keys:
 #   watch=psql,vim     also repaint the terminals of these running programs
 #   scrolloff=2        rows of context to keep above/below the picker cursor
 TINCT_WATCH=""
@@ -70,7 +70,7 @@ tinct_slug() {
   printf '%s' "$1" | tr ' ' '-' | tr -cd 'A-Za-z0-9_-'
 }
 
-# --- colour maths ------------------------------------------------------------
+# --- color math ------------------------------------------------------------
 # Hex parsing happens in the shell (cheap). Anything needing floats goes to
 # awk -- and deliberately to POSIX awk, so no gawk-only strtonum()/tolower().
 
@@ -78,7 +78,7 @@ tinct_hex2rgb() {          # "#RRGGBB" -> "R G B"
   local h=${1#\#}
   # Length alone is not enough: a hand-edited theme can hold six characters
   # that are not hex, and feeding those to printf produces shell errors rather
-  # than a colour. Anything unusable becomes mid grey.
+  # than a color. Anything unusable becomes mid gray.
   case $h in
     *[!0-9A-Fa-f]*) h=808080 ;;
   esac
@@ -155,7 +155,7 @@ tinct_contrast() {         # two hexes -> WCAG contrast ratio, one decimal
 }
 
 # --- theme files -------------------------------------------------------------
-# Format is KEY=value with '#' comments. Every colour is optional: omit the
+# Format is KEY=value with '#' comments. Every color is optional: omit the
 # ANSI block and the terminal keeps whatever palette it was configured with.
 #
 # Loading fills these globals:
@@ -246,7 +246,7 @@ tinct_set_active() {
 }
 
 # --- escape sequences --------------------------------------------------------
-# Colours are set with OSC escapes, so they retint the terminal that is already
+# Colors are set with OSC escapes, so they retint the terminal that is already
 # open -- no profile to edit, no new window, nothing to restart.
 #   OSC 10/11/12   fg / bg / cursor
 #   OSC 17/19      selection bg / fg

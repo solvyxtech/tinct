@@ -1,6 +1,6 @@
-# tinct colour editor: nudge a theme's colours and watch the terminal follow.
+# tinct color editor: nudge a theme's colors and watch the terminal follow.
 
-# Slot order is the order the cursor walks: the five window colours, then the
+# Slot order is the order the cursor walks: the five window colors, then the
 # sixteen palette entries.
 TINCT_SLOTS=(BG FG CURSOR SEL_BG SEL_FG)
 TINCT_SLOTLBL=(bg fg cursor sel.bg sel.fg)
@@ -125,7 +125,7 @@ tinct_draw_edit() {
   out ""
 
   # Three columns get the tidy arrangement the slots were designed for:
-  # window colours down the left, the two palette halves beside them.
+  # window colors down the left, the two palette halves beside them.
   i=0
   while [ $i -lt "$grows" ]; do
     line=''
@@ -240,7 +240,7 @@ tinct_edit() {
           tinct_edit_seed "${TINCT_SLOTS[$CUR]}"
           DIRTY=1
         else
-          MSG="\033[38;5;1mnot a hex colour: ${ANSWER}\033[0m"
+          MSG="\033[38;5;1mnot a hex color: ${ANSWER}\033[0m"
         fi ;;
       w)
         tinct_edit_write "$NAME"
