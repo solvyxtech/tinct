@@ -112,6 +112,22 @@ tinct_hex2rgb() {          # "#RRGGBB" -> "R G B"
   printf '%d %d %d' "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}"
 }
 
+# Same conversion into R/G/B globals, without a subshell. Base-16 arithmetic
+# expansion is understood by both shells, which matters because the preview
+# converts every palette entry on every frame.
+tinct_hex2rgb_into() {     # "#RRGGBB" -> R, G, B
+  local h=${1#\#}
+  case $h in
+    *[!0-9A-Fa-f]*) h=808080 ;;
+  esac
+  case ${#h} in
+    3) h="${h:0:1}${h:0:1}${h:1:1}${h:1:1}${h:2:1}${h:2:1}" ;;
+    6) ;;
+    *) h=808080 ;;
+  esac
+  R=$(( 16#${h:0:2} )); G=$(( 16#${h:2:2} )); B=$(( 16#${h:4:2} ))
+}
+
 tinct_hex2hsl() {          # "#RRGGBB" -> "H S L" as floats
   local rgb; rgb=$(tinct_hex2rgb "$1")
   awk -v rgb="$rgb" 'BEGIN{

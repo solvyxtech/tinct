@@ -136,7 +136,17 @@ cmd_clear() {
   printf 'this terminal is back on the default (%s)\n' "$RESOLVED"
 }
 
+# Interactive when it has a terminal to draw on, a plain listing when its
+# output is going somewhere else. Same shape as tinct itself.
 cmd_sessions() {
+  if [ -t 0 ] && [ -t 1 ]; then
+    tinct_select_terminal
+    return $?
+  fi
+  cmd_sessions_list
+}
+
+cmd_sessions_list() {
   tinct_session_gc
   local here d name theme prog mark
   here=$(tinct_this_tty 2>/dev/null) || here=''
@@ -239,7 +249,7 @@ tinct -- terminal color themes, applied to the session you are already in
   tinct set <name> --tty X  one specific terminal
   tinct clear [--all]       drop the override, go back to the default
 
-  tinct sessions            every terminal and what it is showing
+  tinct sessions            pick a terminal, then a theme for it
   tinct which               what this terminal is on, and why
   tinct default [name]      show or set the default for new terminals
 
@@ -288,7 +298,8 @@ case ${1:-select} in
   set|s)          shift; cmd_set "$@" ;;
   default)        shift; cmd_default "$@" ;;
   clear)          shift; cmd_clear "$@" ;;
-  sessions|ps)    cmd_sessions ;;
+  sessions|ps|terminals) cmd_sessions ;;
+  sessions-list)  cmd_sessions_list ;;
   which)          cmd_which ;;
   rules)          cmd_rules ;;
   apply)          shift; cmd_apply "$@" ;;

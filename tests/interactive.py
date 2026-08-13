@@ -276,6 +276,67 @@ for shell in SHELLS:
     check(open(bundled).read() == before, f"{tag}: editing never writes to the bundled themes")
     shutil.rmtree(home)
 
+# --- the terminal picker ------------------------------------------------------
+# TINCT_TTY may hold several device paths, so the picker can be pointed at
+# ordinary files standing in for terminals. Nothing here touches a real window.
+def terminal_picker_case(shell, tag):
+    home = sandbox()
+    box = tempfile.mkdtemp(prefix="tinct-ttys-")
+    fakes = [os.path.join(box, "termA"), os.path.join(box, "termB")]
+    for f in fakes:
+        open(f, "w").close()
+
+    out, code = run(shell, ["sessions"], ["down", "enter", "down", "enter", "q"],
+                    home, extra_env={"TINCT_TTY": "\n".join(fakes)})
+
+    check(code == 0, f"{tag}: terminal picker exits cleanly (got {code})")
+    plain = ANSI_RE.sub("", out)
+    check("open" in plain and "change one" in plain,
+          f"{tag}: terminal picker draws its header")
+
+    a = open(fakes[0]).read()
+    b = open(fakes[1]).read()
+    check("\033]11;" in b, f"{tag}: the chosen terminal is painted")
+    check(a == "", f"{tag}: the other terminal is left completely alone")
+
+    names = os.listdir(os.path.join(home, "sessions"))
+    check(len(names) == 1, f"{tag}: exactly one terminal is pinned (got {names})")
+    if names:
+        check("termB" in names[0],
+              f"{tag}: the pin lands on the terminal that was selected (got {names[0]})")
+        pinned = open(os.path.join(home, "sessions", names[0])).read().strip()
+        check(pinned == SECOND,
+              f"{tag}: the pin records the theme that was chosen (got {pinned})")
+
+    check(default_of(home) == FIRST, f"{tag}: changing another terminal leaves the default alone")
+    shutil.rmtree(home, ignore_errors=True)
+    shutil.rmtree(box, ignore_errors=True)
+
+
+def terminal_picker_unpin(shell, tag):
+    home = sandbox()
+    box = tempfile.mkdtemp(prefix="tinct-ttys-")
+    fake = os.path.join(box, "termA")
+    open(fake, "w").close()
+    key = fake.replace("/", "-")
+    os.makedirs(os.path.join(home, "sessions"), exist_ok=True)
+    open(os.path.join(home, "sessions", key), "w").write(LAST + "\n")
+
+    out, _ = run(shell, ["sessions"], ["c", "q"], home,
+                 extra_env={"TINCT_TTY": fake})
+    check(not os.path.exists(os.path.join(home, "sessions", key)),
+          f"{tag}: 'c' unpins the selected terminal")
+    check("\033]11;" in open(fake).read(),
+          f"{tag}: unpinning repaints that terminal with the default")
+    shutil.rmtree(home, ignore_errors=True)
+    shutil.rmtree(box, ignore_errors=True)
+
+
+for shell in SHELLS:
+    tag = "zsh" if shell == "zsh" else "bash"
+    terminal_picker_case(shell, tag)
+    terminal_picker_unpin(shell, tag)
+
 print(f"interactive: {checks - len(fails)}/{checks} checks passed")
 for f in fails:
     print("  FAIL", f)

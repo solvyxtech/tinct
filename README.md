@@ -64,18 +64,33 @@ tinct clear                    unpin, go back to the default
 tinct clear --all              unpin everything
 ```
 
+`tinct sessions` shows every terminal you have open and lets you change any of
+them without leaving the list:
+
 ```
-$ tinct sessions
-  TERMINAL   THEME                RUNNING
-▸ ttys004    nord                 zsh        pinned
-  ttys006    gruvbox-dark         vim        default
-  ttys009    ember                ssh        pinned
-  ttys012    gruvbox-dark         node       default
+  tinct  4 open · ⏎ to change one
+
+▸ ttys004   nord                 zsh         pinned  ·you    Nord
+  ttys006   gruvbox-dark         vim         default         Arctic north-bluish
+  ttys009   ember                ssh         pinned          ████████████████
+  ttys012   gruvbox-dark         node        default         ████████████████
+
+  ↑↓ move · ⏎ change theme · c unpin · r refresh · q back
 ```
 
-`tinct which` answers the narrower question of what this terminal is on and why.
-Records for terminals that no longer exist are cleaned up automatically, since
-tty names get recycled when windows close.
+Pick a terminal, press enter, and the theme picker opens aimed at it — moving
+the cursor repaints **that** window while this one keeps drawing the list. Set
+it, and you are back at the terminal list with the new theme showing. `c` unpins
+the highlighted terminal and puts it back on the default.
+
+Because the target window is not this one, the preview here is drawn from the
+theme's own color values rather than from your palette — otherwise it would be
+showing you your colors while claiming to show theirs.
+
+Piped or redirected, `tinct sessions` prints a plain listing instead, so it
+stays usable in scripts. `tinct which` answers the narrower question of what
+this terminal is on and why. Records for terminals that no longer exist are
+cleaned up automatically, since tty names get recycled when windows close.
 
 ## Rules: themes that apply themselves
 
